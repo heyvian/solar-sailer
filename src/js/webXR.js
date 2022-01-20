@@ -139,17 +139,10 @@ XR.animate = function() {
 }
 
 XR.render = function(time, frame) {
-    // console.log(renderer);
 
     XR.camera.getWorldPosition(XR.viewerPosition);
-    
-    if (XR.cube) {
-        // XR.cube.rotation.x += 0.01;
-        // XR.cube.rotation.y -= 0.01;
-        // XR.cube.rotation.z += 0.01
-    }
 
-    const speedFactor = 0.01;
+    const speedFactor = 0.005 / XR.viewerPosition.distanceTo(XR.cube.position);
     const direction = new THREE.Vector3();
 
     // XR.cube.getWorldDirection(direction);
