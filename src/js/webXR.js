@@ -27,19 +27,47 @@ XR.init = function(XRtype) {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(45, window.innerHeight / window.innerWidth, 1, 200);
 
-    const geometry = new THREE.BoxGeometry( 0.5, 0.5, 0.5 );
-    const material = new THREE.MeshPhongMaterial({
+    const geometry = new THREE.BoxBufferGeometry( 0.5, 0.5, 0.5 );
+    const material = new THREE.MeshPhysicalMaterial({
         color: '#41591D',
-        flatShading: true,
+        metalness: 1,
+        roughness: 0,
+        clearcoat: 1
       });
     this.cube = new THREE.Mesh( geometry, material );
     this.cube.position.set(0, 1, -1);
-    this.scene.add( this.cube );
 
-    var light = new THREE.PointLight( '#fff', 1, 10, 2 );
-    light.position.set(2, 2, 0);
-    light.lookAt(this.cube.matrixWorld);
-    this.scene.add(light);
+    const sunGeo = new THREE.SphereBufferGeometry(0.1, 32, 32);
+    const sunMat = new THREE.MeshStandardMaterial({
+        color: '#fdb813',
+        flatShading: true,
+      });
+    this.sun = new THREE.Mesh( sunGeo, sunMat );
+    this.sun.name = "Sol";
+    this.sunShining = false;
+
+    // SUPER SIMPLE GLOW EFFECT
+	// use sprite because it appears the same from all angles
+	var spriteMaterial = new THREE.SpriteMaterial( 
+        { 
+            alphaMap: new THREE.TextureLoader().load('dist/images/textures/glow.png'), 
+            // useScreenCoordinates: false, 
+            color: 0xfdb813, 
+            // transparent: false, 
+            // blending: THREE.AdditiveBlending
+        });
+        this.sunGlow = new THREE.Sprite( spriteMaterial );
+        this.sunGlow.scale.set(0.52, 0.52, 0.22);
+        // this.sun.add(sunGlow); // this centers the glow at the mesh
+
+    this.scene.add( this.cube );
+    this.scene.add(  this.sun);
+
+    XR.sunLight = new THREE.PointLight( '#fff', 20, 0, 2);
+    XR.sunLight.position.set(2, 2, 0);
+    // XR.sunLight.lookAt(this.cube.matrixWorld);
+    this.scene.add(XR.sunLight);
+
 
     this.scene.add( new THREE.AmbientLight( '#fff', 0.25 ) );
 
@@ -51,6 +79,32 @@ XR.init = function(XRtype) {
     this.renderer.setSize(document.body.clientWidth, document.body.clientHeight);
     this.renderer.xr.enabled = true;
     this.container.appendChild(this.renderer.domElement);
+
+    // Raycaster
+
+    
+    // Some rasting for AR
+    const dir = new THREE.Vector3();
+    XR.camera.getWorldDirection(dir)
+    XR.lightRaycaster = new THREE.Raycaster();
+
+    // Setup racaster
+    // XR.lightRaycaster.setFromCamera( XR.viewerPosition,  XR.camera );
+    // Update it to use the proper direction
+    // XR.lightRaycaster.set(XR.viewerPosition, dir);
+
+    // Add an arrow helper to show the raycaster
+    XR.arrowHelper = new THREE.ArrowHelper( XR.lightRaycaster.ray.direction, XR.lightRaycaster.ray.origin, 100, 0x00ffff );
+    XR.scene.add(XR.arrowHelper);
+
+    // calculate objects intersecting the picking ray
+    const intersects = XR.lightRaycaster.intersectObjects( XR.scene.children );
+
+    for ( let i = 0; i < intersects.length; i ++ ) {
+
+        intersects[ i ].object.material.color.set( Math.random() * 0xffffff );
+
+    }
 
     if(this.XRtype == 'ar') {
         this.session = {
@@ -124,6 +178,8 @@ XR.onSessionStarted = async function(session) {
     }
 
     XR.initControllers();
+    
+    session.addEventListener('inputsourceschange', onInputSourcesChange);
 
 }
 
@@ -142,15 +198,47 @@ XR.render = function(time, frame) {
 
     XR.camera.getWorldPosition(XR.viewerPosition);
 
-    const speedFactor = 0.005 / XR.viewerPosition.distanceTo(XR.cube.position);
-    const direction = new THREE.Vector3();
+    let speedFactor = 0.008 / XR.viewerPosition.distanceTo(XR.cube.position);
+    // speedFactor = 0;
+    let direction = new THREE.Vector3();
 
     // XR.cube.getWorldDirection(direction);
     XR.camera.getWorldDirection(direction);
-    
-    // XR.viewerPosition, dir
 
     XR.cube.position.add(direction.multiplyScalar(speedFactor));
+    // XR.sun.position.set(XR.camera.position);
+    // XR.sun.position.set(XR.viewerPosition);
+
+    
+    var dist = 0.5;
+    var cwd = new THREE.Vector3();
+            
+    XR.camera.getWorldDirection(cwd);
+    
+    cwd.multiplyScalar(dist);
+    cwd.add(XR.camera.position);
+    
+    XR.sun.position.set(cwd.x, cwd.y - 0.25, cwd.z);
+    XR.sunLight.position.set(cwd.x, cwd.y - 0.25, cwd.z);
+
+    // Update raycaster
+    // XR.lightRaycaster.set(XR.cube.position,  XR.camera );
+    // Update it to use the proper direction
+    // console.log(XR.cube.position, direction);
+    // XR.lightRaycaster.setFromCamera(0, direction);
+    // XR.arrowHelper.setDirection(XR.lightRaycaster.ray.direction);
+
+    
+    // Setup racaster
+    const v2 = new THREE.Vector2(0, 0);
+    XR.lightRaycaster.setFromCamera( v2,  XR.camera );
+    // Update it to use the proper direction
+    // console.log(XR.viewerPosition);
+    // XR.lightRaycaster.set( XR.camera, direction);
+    
+    XR.arrowHelper.setDirection(XR.lightRaycaster.ray.direction);
+
+    
 
     if (XR.renderer.xr.isPresenting) {
         const pose = frame.getViewerPose(XR.referenceSpace);
@@ -186,36 +274,8 @@ XR.initControllers = function() {
     // controllers
     XR.controller1 = XR.renderer.xr.getController( 0 );
     XR.controller1.addEventListener('select', onSelect);
+    
     XR.scene.add( XR.controller1 );
-
-    XR.controller2 = XR.renderer.xr.getController( 1 );
-    XR.scene.add( XR.controller2 );
-
-    const controllerModelFactory = new XRControllerModelFactory();
-    const handModelFactory = new XRHandModelFactory().setPath( "./models/fbx/" );
-
-    // Hand 1
-    XR.controllerGrip1 = XR.renderer.xr.getControllerGrip( 0 );
-    XR.controllerGrip1.add( controllerModelFactory.createControllerModel( XR.controllerGrip1 ) );
-    XR.scene.add( XR.controllerGrip1 );
-
-    XR.hand1 = XR.renderer.xr.getHand( 0 );
-    XR.hand1.addEventListener( 'pinchstart', onPinchStartLeft );
-    XR.hand1.addEventListener( 'pinchend', onPinchEndLeft );
-    XR.hand1.add( handModelFactory.createHandModel( XR.hand1 ) );
-
-    XR.scene.add( XR.hand1 );
-
-    // Hand 2
-    XR.controllerGrip2 = XR.renderer.xr.getControllerGrip( 1 );
-    XR.controllerGrip2.add( controllerModelFactory.createControllerModel( XR.controllerGrip2 ) );
-    XR.scene.add( XR.controllerGrip2 );
-
-    XR.hand2 = XR.renderer.xr.getHand( 1 );
-    XR.hand2.addEventListener( 'pinchstart', onPinchStartRight );
-    XR.hand2.addEventListener( 'pinchend', onPinchEndRight );
-    XR.hand2.add( handModelFactory.createHandModel( XR.hand2 ) );
-    XR.scene.add( XR.hand2 );
 
 }
 
@@ -228,13 +288,15 @@ function onSelect(e) {
         XR.camera.getWorldDirection(dir)
         const raycaster = new THREE.Raycaster();
 
+        // console.log(XR.controller1);
+
         // Setup racaster
         raycaster.setFromCamera( XR.viewerPosition,  XR.camera );
         // Update it to use the proper direction
         raycaster.set(XR.viewerPosition, dir);
 
         // Add an arrow helper to show the raycaster
-        XR.scene.add(new THREE.ArrowHelper( raycaster.ray.direction, raycaster.ray.origin, 100, Math.random() * 0xffffff ));
+        // XR.scene.add(new THREE.ArrowHelper( raycaster.ray.direction, raycaster.ray.origin, 100, Math.random() * 0xffffff ));
 
         // calculate objects intersecting the picking ray
         const intersects = raycaster.intersectObjects( XR.scene.children );
@@ -244,6 +306,44 @@ function onSelect(e) {
             intersects[ i ].object.material.color.set( Math.random() * 0xffffff );
 
         }
+    }
+}
+let xrInputSources;
+function onInputSourcesChange(e) {
+    xrInputSources = e.session.inputSources;
+    const inputSource = xrInputSources[0];
+
+    if(inputSource && inputSource.gamepad) {
+        const v2 = new THREE.Vector2(inputSource.gamepad.axes[0], inputSource.gamepad.axes[1] * -1);
+        console.log(inputSource.gamepad.axes);
+    
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera( v2,  XR.camera );
+        XR.scene.add(new THREE.ArrowHelper( raycaster.ray.direction, raycaster.ray.origin, 100, Math.random() * 0xff0000 ));
+    
+        const intersects = raycaster.intersectObject( XR.sun );
+
+        console.log(raycaster.intersectObject( XR.sun ));
+
+        if(raycaster.intersectObject( XR.sun ).length > 0) {
+            console.log('Icarus');
+            // XR.sun.material.opacity = 0.5 ;
+            if(XR.sunShining == false) {
+                // XR.sun.setValues({emissive: '#fdb813'});
+                // XR.sun.material.emissive = '#fdb813';
+                XR.sun.add(XR.sunGlow);
+                // XR.sun.material.opacity = 1 ;
+                XR.sunShining = true;
+            } else {
+                // XR.sun.material.opacity = 0.5 ;
+                // XR.sun.material.emissive = '#000';
+                
+                XR.sun.remove(XR.sunGlow);
+                // XR.sun.setValues({emissive: '#000000'});
+                XR.sunShining = false;
+            }
+        }
+
     }
 }
 
