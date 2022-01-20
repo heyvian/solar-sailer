@@ -146,17 +146,18 @@ XR.render = function(time, frame) {
     if (XR.cube) {
         // XR.cube.rotation.x += 0.01;
         // XR.cube.rotation.y -= 0.01;
-        XR.cube.rotation.z += 0.01
+        // XR.cube.rotation.z += 0.01
     }
 
-    const speedFactor = -0.01;
+    const speedFactor = 0.01;
     const direction = new THREE.Vector3();
 
-    XR.cube.getWorldDirection(direction);
+    // XR.cube.getWorldDirection(direction);
+    XR.camera.getWorldDirection(direction);
+    
+    // XR.viewerPosition, dir
 
     XR.cube.position.add(direction.multiplyScalar(speedFactor));
-
-    console.log('Move', direction.multiplyScalar(speedFactor));
 
     if (XR.renderer.xr.isPresenting) {
         const pose = frame.getViewerPose(XR.referenceSpace);
