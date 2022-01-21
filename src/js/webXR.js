@@ -42,23 +42,6 @@ XR.init = function(XRtype) {
     this.renderer.xr.enabled = true;
     this.container.appendChild(this.renderer.domElement);
 
-    // Raycaster
-
-    
-    // Some rasting for AR
-    const dir = new THREE.Vector3();
-    XR.camera.getWorldDirection(dir)
-    XR.lightRaycaster = new THREE.Raycaster();
-
-    // Setup racaster
-    // XR.lightRaycaster.setFromCamera( XR.viewerPosition,  XR.camera );
-    // Update it to use the proper direction
-    // XR.lightRaycaster.set(XR.viewerPosition, dir);
-
-    // Add an arrow helper to show the raycaster
-    XR.arrowHelper = new THREE.ArrowHelper( XR.lightRaycaster.ray.direction, XR.lightRaycaster.ray.origin, 100, 0x00ffff );
-    XR.scene.add(XR.arrowHelper);
-
     // calculate objects intersecting the picking ray
     const intersects = XR.lightRaycaster.intersectObjects( XR.scene.children );
 
@@ -245,7 +228,6 @@ function buildSpacecraft() {
         clearcoat: 1
       });
     XR.spacecraftBox = new THREE.Mesh( geometry, material );
-    // XR.spacecraftBox.position.set(0, 0, 0);
     XR.spacecraft.add(XR.spacecraftBox);
     
     XR.spacecraft.position.set(0, XR.camera.position.y + 1.2, -1);
