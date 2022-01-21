@@ -28,7 +28,7 @@ XR.init = function(XRtype) {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(45, window.innerHeight / window.innerWidth, 1, 200);
 
-    const geometry = new THREE.BoxBufferGeometry( 0.5, 0.5, 0.5 );
+    const geometry = new THREE.BoxBufferGeometry( 0.75, 0.75, 0.1 );
     const material = new THREE.MeshPhysicalMaterial({
         color: '#d4af37',
         metalness: 1,
@@ -40,7 +40,7 @@ XR.init = function(XRtype) {
     this.scene.add( this.cube );
 
     initSun();
-    setLights();
+    setupLights();
 
     this.renderer = new THREE.WebGLRenderer({
         antialias: true,
@@ -298,37 +298,38 @@ function attachSunToViewer() {
 }
 
 function toggleSunLight() {
-    let newColor = new THREE.Color(XR.sunColor.getHex());
+    let updateSunColor = new THREE.Color(XR.sunColor.getHex());
 
     if(XR.sunShining == false) {
-        gsap.to(newColor, {r: XR.sunOnColor.r, g: XR.sunOnColor.g, b: XR.sunOnColor.b, duration: 0.4,
+        gsap.to(updateSunColor, {r: XR.sunOnColor.r, g: XR.sunOnColor.g, b: XR.sunOnColor.b, duration: 0.4,
 
             onUpdate: function () {
                 console.log(XR.sunColor);
-                XR.sun.material.color = newColor;
+                XR.sunColor = updateSunColor;
+                XR.sun.material.color = updateSunColor;
             }
         });
-        // XR.sun.material.emissive = new THREE.Color( 0xfdb813 );
+        XR.sun.material.emissive = new THREE.Color( 0xfdb813 );
         XR.sunLight.intensity = 20;
         XR.sun.add(XR.sunGlow);
         XR.sunShining = true;
     } else {
-        // let newColor = new THREE.Color({r: XR.sunColor.r, g: XR.sunColor.g, b: XR.sunColor.b});
-        gsap.to(newColor, {r: XR.sunOffColor.r, g: XR.sunOffColor.g, b: XR.sunOffColor.b, duration: 0.4,
+        gsap.to(updateSunColor, {r: XR.sunOffColor.r, g: XR.sunOffColor.g, b: XR.sunOffColor.b, duration: 0.4,
 
             onUpdate: function () {
                 console.log(XR.sunColor);
-                XR.sun.material.color = newColor;
+                XR.sunColor = updateSunColor;
+                XR.sun.material.color = updateSunColor;
             }
         });
-        // XR.sun.material.emissive = new THREE.Color( 0x000000 );
+        XR.sun.material.emissive = new THREE.Color( 0x000000 );
         XR.sunLight.intensity = 0;
         XR.sun.remove(XR.sunGlow);
         XR.sunShining = false;
     }
 }
 
-function setLights() {
+function setupLights() {
     const ambientLight = new THREE.AmbientLight( 0x404040, 10 ); // soft white light
     XR.scene.add( ambientLight );
 
@@ -337,8 +338,8 @@ function setLights() {
     // XR.sunLight.lookAt(XR.cube.matrixWorld);
     XR.sunGroup.add(XR.sunLight);
     
-    const pointLightHelper = new THREE.PointLightHelper( XR.sunLight, .5 );
-    XR.scene.add( pointLightHelper );
+    // const pointLightHelper = new THREE.PointLightHelper( XR.sunLight, .5 );
+    // XR.scene.add( pointLightHelper );
 }
 
 function onSelect(e) {

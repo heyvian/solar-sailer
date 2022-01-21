@@ -38985,91 +38985,6 @@ function getBoneList( object ) {
 
 }
 
-class PointLightHelper extends Mesh {
-
-	constructor( light, sphereSize, color ) {
-
-		const geometry = new SphereGeometry( sphereSize, 4, 2 );
-		const material = new MeshBasicMaterial( { wireframe: true, fog: false, toneMapped: false } );
-
-		super( geometry, material );
-
-		this.light = light;
-		this.light.updateMatrixWorld();
-
-		this.color = color;
-
-		this.type = 'PointLightHelper';
-
-		this.matrix = this.light.matrixWorld;
-		this.matrixAutoUpdate = false;
-
-		this.update();
-
-
-		/*
-	// TODO: delete this comment?
-	const distanceGeometry = new THREE.IcosahedronBufferGeometry( 1, 2 );
-	const distanceMaterial = new THREE.MeshBasicMaterial( { color: hexColor, fog: false, wireframe: true, opacity: 0.1, transparent: true } );
-
-	this.lightSphere = new THREE.Mesh( bulbGeometry, bulbMaterial );
-	this.lightDistance = new THREE.Mesh( distanceGeometry, distanceMaterial );
-
-	const d = light.distance;
-
-	if ( d === 0.0 ) {
-
-		this.lightDistance.visible = false;
-
-	} else {
-
-		this.lightDistance.scale.set( d, d, d );
-
-	}
-
-	this.add( this.lightDistance );
-	*/
-
-	}
-
-	dispose() {
-
-		this.geometry.dispose();
-		this.material.dispose();
-
-	}
-
-	update() {
-
-		if ( this.color !== undefined ) {
-
-			this.material.color.set( this.color );
-
-		} else {
-
-			this.material.color.copy( this.light.color );
-
-		}
-
-		/*
-		const d = this.light.distance;
-
-		if ( d === 0.0 ) {
-
-			this.lightDistance.visible = false;
-
-		} else {
-
-			this.lightDistance.visible = true;
-			this.lightDistance.scale.set( d, d, d );
-
-		}
-		*/
-
-	}
-
-}
-
 class GridHelper extends LineSegments {
 
 	constructor( size = 10, divisions = 10, color1 = 0x444444, color2 = 0x888888 ) {
@@ -46178,7 +46093,7 @@ XR.init = function(XRtype) {
     this.scene = new Scene();
     this.camera = new PerspectiveCamera(45, window.innerHeight / window.innerWidth, 1, 200);
 
-    const geometry = new BoxGeometry( 0.5, 0.5, 0.5 );
+    const geometry = new BoxGeometry( 0.75, 0.75, 0.1 );
     const material = new MeshPhysicalMaterial({
         color: '#d4af37',
         metalness: 1,
@@ -46190,7 +46105,7 @@ XR.init = function(XRtype) {
     this.scene.add( this.cube );
 
     initSun();
-    setLights();
+    setupLights();
 
     this.renderer = new WebGLRenderer({
         antialias: true,
@@ -46444,37 +46359,38 @@ function attachSunToViewer() {
 }
 
 function toggleSunLight() {
-    let newColor = new Color(XR.sunColor.getHex());
+    let updateSunColor = new Color(XR.sunColor.getHex());
 
     if(XR.sunShining == false) {
-        gsapWithCSS.to(newColor, {r: XR.sunOnColor.r, g: XR.sunOnColor.g, b: XR.sunOnColor.b, duration: 0.4,
+        gsapWithCSS.to(updateSunColor, {r: XR.sunOnColor.r, g: XR.sunOnColor.g, b: XR.sunOnColor.b, duration: 0.4,
 
             onUpdate: function () {
                 console.log(XR.sunColor);
-                XR.sun.material.color = newColor;
+                XR.sunColor = updateSunColor;
+                XR.sun.material.color = updateSunColor;
             }
         });
-        // XR.sun.material.emissive = new THREE.Color( 0xfdb813 );
+        XR.sun.material.emissive = new Color( 0xfdb813 );
         XR.sunLight.intensity = 20;
         XR.sun.add(XR.sunGlow);
         XR.sunShining = true;
     } else {
-        // let newColor = new THREE.Color({r: XR.sunColor.r, g: XR.sunColor.g, b: XR.sunColor.b});
-        gsapWithCSS.to(newColor, {r: XR.sunOffColor.r, g: XR.sunOffColor.g, b: XR.sunOffColor.b, duration: 0.4,
+        gsapWithCSS.to(updateSunColor, {r: XR.sunOffColor.r, g: XR.sunOffColor.g, b: XR.sunOffColor.b, duration: 0.4,
 
             onUpdate: function () {
                 console.log(XR.sunColor);
-                XR.sun.material.color = newColor;
+                XR.sunColor = updateSunColor;
+                XR.sun.material.color = updateSunColor;
             }
         });
-        // XR.sun.material.emissive = new THREE.Color( 0x000000 );
+        XR.sun.material.emissive = new Color( 0x000000 );
         XR.sunLight.intensity = 0;
         XR.sun.remove(XR.sunGlow);
         XR.sunShining = false;
     }
 }
 
-function setLights() {
+function setupLights() {
     const ambientLight = new AmbientLight( 0x404040, 10 ); // soft white light
     XR.scene.add( ambientLight );
 
@@ -46483,8 +46399,8 @@ function setLights() {
     // XR.sunLight.lookAt(XR.cube.matrixWorld);
     XR.sunGroup.add(XR.sunLight);
     
-    const pointLightHelper = new PointLightHelper( XR.sunLight, .5 );
-    XR.scene.add( pointLightHelper );
+    // const pointLightHelper = new THREE.PointLightHelper( XR.sunLight, .5 );
+    // XR.scene.add( pointLightHelper );
 }
 
 function onSelect(e) {
