@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import gsap from "gsap";
+import { TWEEN } from 'three/examples/jsm/libs/tween.module.min'
 import { XRControllerModelFactory } from 'three/examples/jsm/webxr/XRControllerModelFactory.js';
 import { XRHandModelFactory } from 'three/examples/jsm/webxr/XRHandModelFactory.js';
 
@@ -28,17 +29,7 @@ XR.init = function(XRtype) {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(45, window.innerHeight / window.innerWidth, 1, 200);
 
-    const geometry = new THREE.BoxBufferGeometry( 0.75, 0.75, 0.1 );
-    const material = new THREE.MeshPhysicalMaterial({
-        color: '#d4af37',
-        metalness: 1,
-        roughness: 1,
-        clearcoat: 1
-      });
-    this.cube = new THREE.Mesh( geometry, material );
-    this.cube.position.set(0, 1, -1);
-    this.scene.add( this.cube );
-
+    buildSpacecraft();
     initSun();
     setupLights();
 
@@ -113,7 +104,7 @@ XR.startXRSession = function() {
 
 XR.onSessionStarted = async function(session) {
     console.log('|||| ' + XR.XRtype.toUpperCase() + ' session started');
-    XR.animate();
+    XR.animate(true);
     session.addEventListener('end', XR.onSessionEnded);
 
     await XR.renderer.xr.setSession(session);
@@ -157,13 +148,20 @@ XR.onSessionStarted = async function(session) {
 XR.onSessionEnded = async function() {
     XR.currentSession.removeEventListener('end', XR.onSessionEnded);
     XR.currentSession = null;
+    XR.animate(false);
 
     document.querySelector('body').classList.remove('has-xr', 'has-ar', 'has-vr');
 }
 
-XR.animate = function() {
-    XR.renderer.setAnimationLoop(XR.render);
+XR.animate = function(animate) {
+    if(animate){
+        XR.renderer.setAnimationLoop(XR.render);
+    } else {
+        XR.renderer.setAnimationLoop(null);
+    }
 }
+
+XR.angleCaster = new THREE.Raycaster();
 
 XR.render = function(time, frame) {
 
@@ -175,27 +173,28 @@ XR.render = function(time, frame) {
 
     attachSunToViewer();
 
+    let dirToSpacecraft = new THREE.Vector3();
+
+    // XR.spacecraft.getWorldDirection(dir);
+    // XR.spacecraft.getWorldDirection(dir);
+    // console.log(dir);
+
     // XR.sun.position.set(XR.camera.position);
     // XR.sun.position.set(XR.viewerPosition);
-
+    // const raycaster = new THREE.Raycaster();
     // Update raycaster
-    // XR.lightRaycaster.set(XR.cube.position,  XR.camera );
     // Update it to use the proper direction
-    // console.log(XR.cube.position, direction);
-    // XR.lightRaycaster.setFromCamera(0, direction);
+
+    // console.log(dirToSpacecraft.subVectors(XR.spacecraft.position, XR.camera.position));
+    
+    // // Setup racaster
+    // const v2 = new THREE.Vector2(0, 0);
+    // XR.lightRaycaster.setFromCamera( v2,  XR.camera );
+    // // Update it to use the proper direction
+    // // console.log(XR.viewerPosition);
+    // // XR.lightRaycaster.set( XR.camera, direction);
+    
     // XR.arrowHelper.setDirection(XR.lightRaycaster.ray.direction);
-
-    
-    // Setup racaster
-    const v2 = new THREE.Vector2(0, 0);
-    XR.lightRaycaster.setFromCamera( v2,  XR.camera );
-    // Update it to use the proper direction
-    // console.log(XR.viewerPosition);
-    // XR.lightRaycaster.set( XR.camera, direction);
-    
-    XR.arrowHelper.setDirection(XR.lightRaycaster.ray.direction);
-
-    
 
     if (XR.renderer.xr.isPresenting) {
         const pose = frame.getViewerPose(XR.referenceSpace);
@@ -236,6 +235,76 @@ XR.initControllers = function() {
 
 }
 
+function buildSpacecraft() {
+    XR.spacecraft = new THREE.Group();
+    const geometry = new THREE.BoxBufferGeometry( 0.75, 0.75, 0.1 );
+    const material = new THREE.MeshPhysicalMaterial({
+        color: '#d4af37',
+        metalness: 1,
+        roughness: 1,
+        clearcoat: 1
+      });
+    XR.spacecraftBox = new THREE.Mesh( geometry, material );
+    // XR.spacecraftBox.position.set(0, 0, 0);
+    XR.spacecraft.add(XR.spacecraftBox);
+    
+    XR.spacecraft.position.set(0, XR.camera.position.y + 1, -1);
+    XR.scene.add( XR.spacecraft );
+    XR.oldCameraPosition = XR.camera.position;
+
+    XR.cameraFacers = new THREE.Group();
+    const cameraFacerGeo = new THREE.BoxBufferGeometry( 0.25, 0.25, 0.25 );
+    const cameraFacerOneMat = new THREE.MeshBasicMaterial({
+        color: '#ff0000',
+      });
+    const cameraFacerTwoMat = new THREE.MeshBasicMaterial({
+          color: '#ff00ff',
+        });
+    XR.cameraFacerOne = new THREE.Mesh( cameraFacerGeo, cameraFacerOneMat );
+    XR.cameraFacerTwo = new THREE.Mesh( cameraFacerGeo, cameraFacerTwoMat );
+    XR.cameraFacers.add(XR.cameraFacerOne);
+    XR.cameraFacers.add(XR.cameraFacerTwo);
+    XR.scene.add( XR.cameraFacers );
+
+}
+
+function moveSpacecraft() {
+    XR.cameraFacers.position.copy(XR.spacecraft.position);
+    const cameraPosStore = XR.camera.position;
+
+    if(XR.sunShining) {
+        let startQ = new THREE.Quaternion().copy(XR.camera.quaternion);
+        let endQ = new THREE.Quaternion().copy(XR.camera.quaternion);
+
+        XR.cameraFacerTwo.lookAt(XR.camera.position);
+        var q1 = new THREE.Quaternion();
+        q1.copy(XR.cameraFacerTwo.quaternion);
+        // XR.spacecraft.lookAt(XR.camera.position);
+        var q2 = new THREE.Quaternion();
+        q2.copy(XR.cameraFacerOne.quaternion);
+
+        // XR.spacecraft.quaternion.slerpQuaternions(XR.camera.quaternion, 0.1);
+        // XR.spacecraft.quaternion.slerpQuaternions( q1, q2, 0.5 ); // 0 < time < 1
+
+        XR.spacecraft.quaternion.slerp(q1, 0.1);
+        // XR.spacecraft.lookAt(XR.camera.position);
+
+        XR.camera.getWorldPosition(XR.viewerPosition);
+
+        let speedFactor = -0.005 / XR.viewerPosition.distanceTo(XR.spacecraft.position);
+        // speedFactor = 0;
+        let direction = new THREE.Vector3();
+    
+        // XR.spacecraft.getWorldDirection(direction);
+        // XR.camera.getWorldDirection(direction);
+    
+        // XR.spacecraft.position.add(direction.multiplyScalar(speedFactor));
+        XR.spacecraft.translateZ(speedFactor);
+    } else {
+        XR.cameraFacerOne.lookAt(XR.camera.position);
+    }
+}
+
 function initSun() {
     
     XR.sunGroup = new THREE.Group();
@@ -269,21 +338,6 @@ function initSun() {
 
 }
 
-function moveSpacecraft() {
-    if(XR.sunShining) {
-        XR.camera.getWorldPosition(XR.viewerPosition);
-
-        let speedFactor = 0.008 / XR.viewerPosition.distanceTo(XR.cube.position);
-        // speedFactor = 0;
-        let direction = new THREE.Vector3();
-    
-        // XR.cube.getWorldDirection(direction);
-        XR.camera.getWorldDirection(direction);
-    
-        XR.cube.position.add(direction.multiplyScalar(speedFactor));
-    } 
-}
-
 function attachSunToViewer() {
     var dist = 0.4;
     var cwd = new THREE.Vector3();
@@ -304,7 +358,6 @@ function toggleSunLight() {
         gsap.to(updateSunColor, {r: XR.sunOnColor.r, g: XR.sunOnColor.g, b: XR.sunOnColor.b, duration: 0.4,
 
             onUpdate: function () {
-                console.log(XR.sunColor);
                 XR.sunColor = updateSunColor;
                 XR.sun.material.color = updateSunColor;
             }
@@ -317,7 +370,6 @@ function toggleSunLight() {
         gsap.to(updateSunColor, {r: XR.sunOffColor.r, g: XR.sunOffColor.g, b: XR.sunOffColor.b, duration: 0.4,
 
             onUpdate: function () {
-                console.log(XR.sunColor);
                 XR.sunColor = updateSunColor;
                 XR.sun.material.color = updateSunColor;
             }
@@ -326,6 +378,7 @@ function toggleSunLight() {
         XR.sunLight.intensity = 0;
         XR.sun.remove(XR.sunGlow);
         XR.sunShining = false;
+        XR.oldCameraPosition = XR.camera.position;
     }
 }
 
@@ -335,7 +388,7 @@ function setupLights() {
 
     XR.sunLight = new THREE.PointLight( '#fff', 0, 0, 2);
     XR.sunLight.position.set(0, 0, 0);
-    // XR.sunLight.lookAt(XR.cube.matrixWorld);
+    // XR.sunLight.lookAt(XR.spacecraft.matrixWorld);
     XR.sunGroup.add(XR.sunLight);
     
     // const pointLightHelper = new THREE.PointLightHelper( XR.sunLight, .5 );
