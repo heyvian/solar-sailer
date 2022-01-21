@@ -46308,60 +46308,35 @@ function buildSpacecraft() {
     // XR.spacecraftBox.position.set(0, 0, 0);
     XR.spacecraft.add(XR.spacecraftBox);
     
-    XR.spacecraft.position.set(0, XR.camera.position.y + 1, -1);
+    XR.spacecraft.position.set(0, XR.camera.position.y + 1.75, -1);
     XR.scene.add( XR.spacecraft );
     XR.oldCameraPosition = XR.camera.position;
 
-    XR.cameraFacers = new Group();
     const cameraFacerGeo = new BoxGeometry( 0.25, 0.25, 0.25 );
-    const cameraFacerOneMat = new MeshBasicMaterial({
-        color: '#ff0000',
+    const cameraFacerMat = new MeshBasicMaterial({
+        color: '#000000',
+        opacity : 0,
+        transparent: true
       });
-    const cameraFacerTwoMat = new MeshBasicMaterial({
-          color: '#ff00ff',
-        });
-    XR.cameraFacerOne = new Mesh( cameraFacerGeo, cameraFacerOneMat );
-    XR.cameraFacerTwo = new Mesh( cameraFacerGeo, cameraFacerTwoMat );
-    XR.cameraFacers.add(XR.cameraFacerOne);
-    XR.cameraFacers.add(XR.cameraFacerTwo);
-    XR.scene.add( XR.cameraFacers );
+    XR.cameraFacer = new Mesh( cameraFacerGeo, cameraFacerMat );
+    XR.scene.add( XR.cameraFacer );
 
 }
 
 function moveSpacecraft() {
-    XR.cameraFacers.position.copy(XR.spacecraft.position);
-    XR.camera.position;
+    XR.cameraFacer.position.copy(XR.spacecraft.position);
 
     if(XR.sunShining) {
-        new Quaternion().copy(XR.camera.quaternion);
-        new Quaternion().copy(XR.camera.quaternion);
-
-        XR.cameraFacerTwo.lookAt(XR.camera.position);
+        XR.cameraFacer.lookAt(XR.camera.position);
         var q1 = new Quaternion();
-        q1.copy(XR.cameraFacerTwo.quaternion);
-        // XR.spacecraft.lookAt(XR.camera.position);
-        var q2 = new Quaternion();
-        q2.copy(XR.cameraFacerOne.quaternion);
-
-        // XR.spacecraft.quaternion.slerpQuaternions(XR.camera.quaternion, 0.1);
-        // XR.spacecraft.quaternion.slerpQuaternions( q1, q2, 0.5 ); // 0 < time < 1
+        q1.copy(XR.cameraFacer.quaternion);
 
         XR.spacecraft.quaternion.slerp(q1, 0.1);
-        // XR.spacecraft.lookAt(XR.camera.position);
 
         XR.camera.getWorldPosition(XR.viewerPosition);
 
-        let speedFactor = -0.005 / XR.viewerPosition.distanceTo(XR.spacecraft.position);
-        // speedFactor = 0;
-        new Vector3();
-    
-        // XR.spacecraft.getWorldDirection(direction);
-        // XR.camera.getWorldDirection(direction);
-    
-        // XR.spacecraft.position.add(direction.multiplyScalar(speedFactor));
+        let speedFactor = -0.008 / XR.viewerPosition.distanceTo(XR.spacecraft.position);
         XR.spacecraft.translateZ(speedFactor);
-    } else {
-        XR.cameraFacerOne.lookAt(XR.camera.position);
     }
 }
 
