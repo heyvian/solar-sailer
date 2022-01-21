@@ -294,7 +294,7 @@ function attachSunToViewer() {
     cwd.add(XR.camera.position);
     
     XR.sunGroup.position.set(cwd.x, cwd.y - 0.30, cwd.z);
-    XR.sunGroup.setRotationFromQuaternion(XR.camera.quaternion);
+    // XR.sunGroup.setRotationFromQuaternion(XR.camera.quaternion);
 }
 
 function toggleSunLight() {
