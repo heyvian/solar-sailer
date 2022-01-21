@@ -248,7 +248,7 @@ function buildSpacecraft() {
     // XR.spacecraftBox.position.set(0, 0, 0);
     XR.spacecraft.add(XR.spacecraftBox);
     
-    XR.spacecraft.position.set(0, XR.camera.position.y + 1.75, -1);
+    XR.spacecraft.position.set(0, XR.camera.position.y + 1.2, -1);
     XR.scene.add( XR.spacecraft );
     XR.oldCameraPosition = XR.camera.position;
 
