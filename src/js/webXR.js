@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import gsap from "gsap";
 import { XRControllerModelFactory } from 'three/examples/jsm/webxr/XRControllerModelFactory.js';
 import { XRHandModelFactory } from 'three/examples/jsm/webxr/XRHandModelFactory.js';
 
@@ -29,47 +30,17 @@ XR.init = function(XRtype) {
 
     const geometry = new THREE.BoxBufferGeometry( 0.5, 0.5, 0.5 );
     const material = new THREE.MeshPhysicalMaterial({
-        color: '#41591D',
+        color: '#d4af37',
         metalness: 1,
-        roughness: 0,
+        roughness: 1,
         clearcoat: 1
       });
     this.cube = new THREE.Mesh( geometry, material );
     this.cube.position.set(0, 1, -1);
-
-    const sunGeo = new THREE.SphereBufferGeometry(0.1, 32, 32);
-    const sunMat = new THREE.MeshStandardMaterial({
-        color: '#fdb813',
-        flatShading: true,
-      });
-    this.sun = new THREE.Mesh( sunGeo, sunMat );
-    this.sun.name = "Sol";
-    this.sunShining = false;
-
-    // SUPER SIMPLE GLOW EFFECT
-	// use sprite because it appears the same from all angles
-	var spriteMaterial = new THREE.SpriteMaterial( 
-        { 
-            alphaMap: new THREE.TextureLoader().load('dist/images/textures/glow.png'), 
-            // useScreenCoordinates: false, 
-            color: 0xfdb813, 
-            // transparent: false, 
-            // blending: THREE.AdditiveBlending
-        });
-        this.sunGlow = new THREE.Sprite( spriteMaterial );
-        this.sunGlow.scale.set(0.52, 0.52, 0.22);
-        // this.sun.add(sunGlow); // this centers the glow at the mesh
-
     this.scene.add( this.cube );
-    this.scene.add(  this.sun);
 
-    XR.sunLight = new THREE.PointLight( '#fff', 20, 0, 2);
-    XR.sunLight.position.set(2, 2, 0);
-    // XR.sunLight.lookAt(this.cube.matrixWorld);
-    this.scene.add(XR.sunLight);
-
-
-    this.scene.add( new THREE.AmbientLight( '#fff', 0.25 ) );
+    initSun();
+    setLights();
 
     this.renderer = new THREE.WebGLRenderer({
         antialias: true,
@@ -196,30 +167,16 @@ XR.animate = function() {
 
 XR.render = function(time, frame) {
 
-    XR.camera.getWorldPosition(XR.viewerPosition);
+    XR.sun.rotation.x -= 0.0015;
+    XR.sun.rotation.y -= 0.0015;
+    XR.sun.rotation.z -= 0.0015;
 
-    let speedFactor = 0.008 / XR.viewerPosition.distanceTo(XR.cube.position);
-    // speedFactor = 0;
-    let direction = new THREE.Vector3();
+    moveSpacecraft();
 
-    // XR.cube.getWorldDirection(direction);
-    XR.camera.getWorldDirection(direction);
+    attachSunToViewer();
 
-    XR.cube.position.add(direction.multiplyScalar(speedFactor));
     // XR.sun.position.set(XR.camera.position);
     // XR.sun.position.set(XR.viewerPosition);
-
-    
-    var dist = 0.5;
-    var cwd = new THREE.Vector3();
-            
-    XR.camera.getWorldDirection(cwd);
-    
-    cwd.multiplyScalar(dist);
-    cwd.add(XR.camera.position);
-    
-    XR.sun.position.set(cwd.x, cwd.y - 0.25, cwd.z);
-    XR.sunLight.position.set(cwd.x, cwd.y - 0.25, cwd.z);
 
     // Update raycaster
     // XR.lightRaycaster.set(XR.cube.position,  XR.camera );
@@ -279,6 +236,111 @@ XR.initControllers = function() {
 
 }
 
+function initSun() {
+    
+    XR.sunGroup = new THREE.Group();
+    XR.sunOnColor = new THREE.Color( 0x8b6200 );
+    XR.sunOffColor = new THREE.Color( 0x211801 );
+    XR.sunColor = XR.sunOffColor;
+    const sunGeo = new THREE.SphereBufferGeometry(0.13, 128, 128);
+    const sunMat = new THREE.MeshStandardMaterial({
+        color: XR.sunColor,
+        map: new THREE.TextureLoader().load('dist/images/textures/sun-color-map.jpg'),
+        displacementMap: new THREE.TextureLoader().load('dist/images/textures/sun-displacement-map.jpg'),
+        displacementScale: 0.003,
+        emissiveMap: new THREE.TextureLoader().load('dist/images/textures/sun-displacement-map.jpg'),
+        emissiveIntensity: 0.5
+      });
+    XR.sun = new THREE.Mesh( sunGeo, sunMat );
+    XR.sun.name = "Sol";
+    XR.sunGroup.add(XR.sun);
+
+	var sunGlowSpriteMat = new THREE.SpriteMaterial( 
+    { 
+        alphaMap: new THREE.TextureLoader().load('dist/images/textures/glow.png'), 
+        color: 0xfdb813, 
+    });
+    XR.sunGlow = new THREE.Sprite( sunGlowSpriteMat );
+    XR.sunGlow.scale.set(0.4, 0.4, 1);
+
+    XR.scene.add(XR.sunGroup);
+
+    XR.sunShining = false;
+
+}
+
+function moveSpacecraft() {
+    if(XR.sunShining) {
+        XR.camera.getWorldPosition(XR.viewerPosition);
+
+        let speedFactor = 0.008 / XR.viewerPosition.distanceTo(XR.cube.position);
+        // speedFactor = 0;
+        let direction = new THREE.Vector3();
+    
+        // XR.cube.getWorldDirection(direction);
+        XR.camera.getWorldDirection(direction);
+    
+        XR.cube.position.add(direction.multiplyScalar(speedFactor));
+    } 
+}
+
+function attachSunToViewer() {
+    var dist = 0.4;
+    var cwd = new THREE.Vector3();
+            
+    XR.camera.getWorldDirection(cwd);
+    
+    cwd.multiplyScalar(dist);
+    cwd.add(XR.camera.position);
+    
+    XR.sunGroup.position.set(cwd.x, cwd.y - 0.30, cwd.z);
+    XR.sunGroup.setRotationFromQuaternion(XR.camera.quaternion);
+}
+
+function toggleSunLight() {
+    let newColor = new THREE.Color(XR.sunColor.getHex());
+
+    if(XR.sunShining == false) {
+        gsap.to(newColor, {r: XR.sunOnColor.r, g: XR.sunOnColor.g, b: XR.sunOnColor.b, duration: 0.4,
+
+            onUpdate: function () {
+                console.log(XR.sunColor);
+                XR.sun.material.color = newColor;
+            }
+        });
+        // XR.sun.material.emissive = new THREE.Color( 0xfdb813 );
+        XR.sunLight.intensity = 20;
+        XR.sun.add(XR.sunGlow);
+        XR.sunShining = true;
+    } else {
+        // let newColor = new THREE.Color({r: XR.sunColor.r, g: XR.sunColor.g, b: XR.sunColor.b});
+        gsap.to(newColor, {r: XR.sunOffColor.r, g: XR.sunOffColor.g, b: XR.sunOffColor.b, duration: 0.4,
+
+            onUpdate: function () {
+                console.log(XR.sunColor);
+                XR.sun.material.color = newColor;
+            }
+        });
+        // XR.sun.material.emissive = new THREE.Color( 0x000000 );
+        XR.sunLight.intensity = 0;
+        XR.sun.remove(XR.sunGlow);
+        XR.sunShining = false;
+    }
+}
+
+function setLights() {
+    const ambientLight = new THREE.AmbientLight( 0x404040, 10 ); // soft white light
+    XR.scene.add( ambientLight );
+
+    XR.sunLight = new THREE.PointLight( '#fff', 0, 0, 2);
+    XR.sunLight.position.set(0, 0, 0);
+    // XR.sunLight.lookAt(XR.cube.matrixWorld);
+    XR.sunGroup.add(XR.sunLight);
+    
+    const pointLightHelper = new THREE.PointLightHelper( XR.sunLight, .5 );
+    XR.scene.add( pointLightHelper );
+}
+
 function onSelect(e) {
     console.log('onSelect()');
 
@@ -295,53 +357,25 @@ function onSelect(e) {
         // Update it to use the proper direction
         raycaster.set(XR.viewerPosition, dir);
 
-        // Add an arrow helper to show the raycaster
-        // XR.scene.add(new THREE.ArrowHelper( raycaster.ray.direction, raycaster.ray.origin, 100, Math.random() * 0xffffff ));
-
-        // calculate objects intersecting the picking ray
-        const intersects = raycaster.intersectObjects( XR.scene.children );
-
-        for ( let i = 0; i < intersects.length; i ++ ) {
-
-            intersects[ i ].object.material.color.set( Math.random() * 0xffffff );
-
-        }
     }
+
 }
+
 let xrInputSources;
+
 function onInputSourcesChange(e) {
     xrInputSources = e.session.inputSources;
     const inputSource = xrInputSources[0];
 
     if(inputSource && inputSource.gamepad) {
         const v2 = new THREE.Vector2(inputSource.gamepad.axes[0], inputSource.gamepad.axes[1] * -1);
-        console.log(inputSource.gamepad.axes);
     
         const raycaster = new THREE.Raycaster();
         raycaster.setFromCamera( v2,  XR.camera );
-        XR.scene.add(new THREE.ArrowHelper( raycaster.ray.direction, raycaster.ray.origin, 100, Math.random() * 0xff0000 ));
-    
-        const intersects = raycaster.intersectObject( XR.sun );
-
-        console.log(raycaster.intersectObject( XR.sun ));
+        // XR.scene.add(new THREE.ArrowHelper( raycaster.ray.direction, raycaster.ray.origin, 100, Math.random() * 0xff0000 ));
 
         if(raycaster.intersectObject( XR.sun ).length > 0) {
-            console.log('Icarus');
-            // XR.sun.material.opacity = 0.5 ;
-            if(XR.sunShining == false) {
-                // XR.sun.setValues({emissive: '#fdb813'});
-                // XR.sun.material.emissive = '#fdb813';
-                XR.sun.add(XR.sunGlow);
-                // XR.sun.material.opacity = 1 ;
-                XR.sunShining = true;
-            } else {
-                // XR.sun.material.opacity = 0.5 ;
-                // XR.sun.material.emissive = '#000';
-                
-                XR.sun.remove(XR.sunGlow);
-                // XR.sun.setValues({emissive: '#000000'});
-                XR.sunShining = false;
-            }
+            toggleSunLight();
         }
 
     }
