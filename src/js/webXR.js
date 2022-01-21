@@ -42,15 +42,6 @@ XR.init = function(XRtype) {
     this.renderer.xr.enabled = true;
     this.container.appendChild(this.renderer.domElement);
 
-    // calculate objects intersecting the picking ray
-    const intersects = XR.lightRaycaster.intersectObjects( XR.scene.children );
-
-    for ( let i = 0; i < intersects.length; i ++ ) {
-
-        intersects[ i ].object.material.color.set( Math.random() * 0xffffff );
-
-    }
-
     if(this.XRtype == 'ar') {
         this.session = {
             requiredFeatures: ['local-floor', 'hit-test']
