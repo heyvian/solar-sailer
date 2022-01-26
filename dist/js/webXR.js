@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: MIT
  */
 const REVISION = '128';
+const MOUSE = { LEFT: 0, MIDDLE: 1, RIGHT: 2, ROTATE: 0, DOLLY: 1, PAN: 2 };
+const TOUCH = { ROTATE: 0, PAN: 1, DOLLY_PAN: 2, DOLLY_ROTATE: 3 };
 const CullFaceNone = 0;
 const CullFaceBack = 1;
 const CullFaceFront = 2;
@@ -260,6 +262,8 @@ for ( let i = 0; i < 256; i ++ ) {
 
 }
 
+let _seed = 1234567;
+
 
 const DEG2RAD = Math.PI / 180;
 const RAD2DEG = 180 / Math.PI;
@@ -295,10 +299,115 @@ function euclideanModulo( n, m ) {
 
 }
 
+// Linear mapping from range <a1, a2> to range <b1, b2>
+function mapLinear( x, a1, a2, b1, b2 ) {
+
+	return b1 + ( x - a1 ) * ( b2 - b1 ) / ( a2 - a1 );
+
+}
+
+// https://www.gamedev.net/tutorials/programming/general-and-gameplay-programming/inverse-lerp-a-super-useful-yet-often-overlooked-function-r5230/
+function inverseLerp( x, y, value ) {
+
+	if ( x !== y ) {
+
+		return ( value - x ) / ( y - x );
+
+		 } else {
+
+		return 0;
+
+		 }
+
+}
+
 // https://en.wikipedia.org/wiki/Linear_interpolation
 function lerp( x, y, t ) {
 
 	return ( 1 - t ) * x + t * y;
+
+}
+
+// http://www.rorydriscoll.com/2016/03/07/frame-rate-independent-damping-using-lerp/
+function damp( x, y, lambda, dt ) {
+
+	return lerp( x, y, 1 - Math.exp( - lambda * dt ) );
+
+}
+
+// https://www.desmos.com/calculator/vcsjnyz7x4
+function pingpong( x, length = 1 ) {
+
+	return length - Math.abs( euclideanModulo( x, length * 2 ) - length );
+
+}
+
+// http://en.wikipedia.org/wiki/Smoothstep
+function smoothstep( x, min, max ) {
+
+	if ( x <= min ) return 0;
+	if ( x >= max ) return 1;
+
+	x = ( x - min ) / ( max - min );
+
+	return x * x * ( 3 - 2 * x );
+
+}
+
+function smootherstep( x, min, max ) {
+
+	if ( x <= min ) return 0;
+	if ( x >= max ) return 1;
+
+	x = ( x - min ) / ( max - min );
+
+	return x * x * x * ( x * ( x * 6 - 15 ) + 10 );
+
+}
+
+// Random integer from <low, high> interval
+function randInt( low, high ) {
+
+	return low + Math.floor( Math.random() * ( high - low + 1 ) );
+
+}
+
+// Random float from <low, high> interval
+function randFloat( low, high ) {
+
+	return low + Math.random() * ( high - low );
+
+}
+
+// Random float from <-range/2, range/2> interval
+function randFloatSpread( range ) {
+
+	return range * ( 0.5 - Math.random() );
+
+}
+
+// Deterministic pseudo-random float in the interval [ 0, 1 ]
+function seededRandom( s ) {
+
+	if ( s !== undefined ) _seed = s % 2147483647;
+
+	// Park-Miller algorithm
+
+	_seed = _seed * 16807 % 2147483647;
+
+	return ( _seed - 1 ) / 2147483646;
+
+}
+
+function degToRad( degrees ) {
+
+	return degrees * DEG2RAD;
+
+}
+
+function radToDeg( radians ) {
+
+	return radians * RAD2DEG;
 
 }
 
@@ -319,6 +428,88 @@ function floorPowerOfTwo( value ) {
 	return Math.pow( 2, Math.floor( Math.log( value ) / Math.LN2 ) );
 
 }
+
+function setQuaternionFromProperEuler( q, a, b, c, order ) {
+
+	// Intrinsic Proper Euler Angles - see https://en.wikipedia.org/wiki/Euler_angles
+
+	// rotations are applied to the axes in the order specified by 'order'
+	// rotation by angle 'a' is applied first, then by angle 'b', then by angle 'c'
+	// angles are in radians
+
+	const cos = Math.cos;
+	const sin = Math.sin;
+
+	const c2 = cos( b / 2 );
+	const s2 = sin( b / 2 );
+
+	const c13 = cos( ( a + c ) / 2 );
+	const s13 = sin( ( a + c ) / 2 );
+
+	const c1_3 = cos( ( a - c ) / 2 );
+	const s1_3 = sin( ( a - c ) / 2 );
+
+	const c3_1 = cos( ( c - a ) / 2 );
+	const s3_1 = sin( ( c - a ) / 2 );
+
+	switch ( order ) {
+
+		case 'XYX':
+			q.set( c2 * s13, s2 * c1_3, s2 * s1_3, c2 * c13 );
+			break;
+
+		case 'YZY':
+			q.set( s2 * s1_3, c2 * s13, s2 * c1_3, c2 * c13 );
+			break;
+
+		case 'ZXZ':
+			q.set( s2 * c1_3, s2 * s1_3, c2 * s13, c2 * c13 );
+			break;
+
+		case 'XZX':
+			q.set( c2 * s13, s2 * s3_1, s2 * c3_1, c2 * c13 );
+			break;
+
+		case 'YXY':
+			q.set( s2 * c3_1, c2 * s13, s2 * s3_1, c2 * c13 );
+			break;
+
+		case 'ZYZ':
+			q.set( s2 * s3_1, s2 * c3_1, c2 * s13, c2 * c13 );
+			break;
+
+		default:
+			console.warn( 'THREE.MathUtils: .setQuaternionFromProperEuler() encountered an unknown order: ' + order );
+
+	}
+
+}
+
+var MathUtils = /*#__PURE__*/Object.freeze({
+	__proto__: null,
+	DEG2RAD: DEG2RAD,
+	RAD2DEG: RAD2DEG,
+	generateUUID: generateUUID,
+	clamp: clamp$1,
+	euclideanModulo: euclideanModulo,
+	mapLinear: mapLinear,
+	inverseLerp: inverseLerp,
+	lerp: lerp,
+	damp: damp,
+	pingpong: pingpong,
+	smoothstep: smoothstep,
+	smootherstep: smootherstep,
+	randInt: randInt,
+	randFloat: randFloat,
+	randFloatSpread: randFloatSpread,
+	seededRandom: seededRandom,
+	degToRad: degToRad,
+	radToDeg: radToDeg,
+	isPowerOfTwo: isPowerOfTwo,
+	ceilPowerOfTwo: ceilPowerOfTwo,
+	floorPowerOfTwo: floorPowerOfTwo,
+	setQuaternionFromProperEuler: setQuaternionFromProperEuler
+});
 
 class Vector2 {
 
@@ -38586,6 +38777,89 @@ function intersectObject( object, raycaster, intersects, recursive ) {
 
 }
 
+/**
+ * Ref: https://en.wikipedia.org/wiki/Spherical_coordinate_system
+ *
+ * The polar angle (phi) is measured from the positive y-axis. The positive y-axis is up.
+ * The azimuthal angle (theta) is measured from the positive z-axis.
+ */
+
+class Spherical {
+
+	constructor( radius = 1, phi = 0, theta = 0 ) {
+
+		this.radius = radius;
+		this.phi = phi; // polar angle
+		this.theta = theta; // azimuthal angle
+
+		return this;
+
+	}
+
+	set( radius, phi, theta ) {
+
+		this.radius = radius;
+		this.phi = phi;
+		this.theta = theta;
+
+		return this;
+
+	}
+
+	copy( other ) {
+
+		this.radius = other.radius;
+		this.phi = other.phi;
+		this.theta = other.theta;
+
+		return this;
+
+	}
+
+	// restrict phi to be betwee EPS and PI-EPS
+	makeSafe() {
+
+		const EPS = 0.000001;
+		this.phi = Math.max( EPS, Math.min( Math.PI - EPS, this.phi ) );
+
+		return this;
+
+	}
+
+	setFromVector3( v ) {
+
+		return this.setFromCartesianCoords( v.x, v.y, v.z );
+
+	}
+
+	setFromCartesianCoords( x, y, z ) {
+
+		this.radius = Math.sqrt( x * x + y * y + z * z );
+
+		if ( this.radius === 0 ) {
+
+			this.theta = 0;
+			this.phi = 0;
+
+		} else {
+
+			this.theta = Math.atan2( x, z );
+			this.phi = Math.acos( clamp$1( y / this.radius, - 1, 1 ) );
+
+		}
+
+		return this;
+
+	}
+
+	clone() {
+
+		return new this.constructor().copy( this );
+
+	}
+
+}
+
 class ImmediateRenderObject extends Object3D {
 
 	constructor( material ) {
@@ -40327,6 +40601,1181 @@ if ( typeof window !== 'undefined' ) {
 	} else {
 
 		window.__THREE__ = REVISION;
+
+	}
+
+}// This set of controls performs orbiting, dollying (zooming), and panning.
+// Unlike TrackballControls, it maintains the "up" direction object.up (+Y by default).
+//
+//    Orbit - left mouse / touch: one-finger move
+//    Zoom - middle mouse, or mousewheel / touch: two-finger spread or squish
+//    Pan - right mouse, or left mouse + ctrl/meta/shiftKey, or arrow keys / touch: two-finger move
+
+const _changeEvent = { type: 'change' };
+const _startEvent = { type: 'start' };
+const _endEvent = { type: 'end' };
+
+class OrbitControls extends EventDispatcher {
+
+	constructor( object, domElement ) {
+
+		super();
+
+		if ( domElement === undefined ) console.warn( 'THREE.OrbitControls: The second parameter "domElement" is now mandatory.' );
+		if ( domElement === document ) console.error( 'THREE.OrbitControls: "document" should not be used as the target "domElement". Please use "renderer.domElement" instead.' );
+
+		this.object = object;
+		this.domElement = domElement;
+
+		// Set to false to disable this control
+		this.enabled = true;
+
+		// "target" sets the location of focus, where the object orbits around
+		this.target = new Vector3();
+
+		// How far you can dolly in and out ( PerspectiveCamera only )
+		this.minDistance = 0;
+		this.maxDistance = Infinity;
+
+		// How far you can zoom in and out ( OrthographicCamera only )
+		this.minZoom = 0;
+		this.maxZoom = Infinity;
+
+		// How far you can orbit vertically, upper and lower limits.
+		// Range is 0 to Math.PI radians.
+		this.minPolarAngle = 0; // radians
+		this.maxPolarAngle = Math.PI; // radians
+
+		// How far you can orbit horizontally, upper and lower limits.
+		// If set, the interval [ min, max ] must be a sub-interval of [ - 2 PI, 2 PI ], with ( max - min < 2 PI )
+		this.minAzimuthAngle = - Infinity; // radians
+		this.maxAzimuthAngle = Infinity; // radians
+
+		// Set to true to enable damping (inertia)
+		// If damping is enabled, you must call controls.update() in your animation loop
+		this.enableDamping = false;
+		this.dampingFactor = 0.05;
+
+		// This option actually enables dollying in and out; left as "zoom" for backwards compatibility.
+		// Set to false to disable zooming
+		this.enableZoom = true;
+		this.zoomSpeed = 1.0;
+
+		// Set to false to disable rotating
+		this.enableRotate = true;
+		this.rotateSpeed = 1.0;
+
+		// Set to false to disable panning
+		this.enablePan = true;
+		this.panSpeed = 1.0;
+		this.screenSpacePanning = true; // if false, pan orthogonal to world-space direction camera.up
+		this.keyPanSpeed = 7.0;	// pixels moved per arrow key push
+
+		// Set to true to automatically rotate around the target
+		// If auto-rotate is enabled, you must call controls.update() in your animation loop
+		this.autoRotate = false;
+		this.autoRotateSpeed = 2.0; // 30 seconds per orbit when fps is 60
+
+		// The four arrow keys
+		this.keys = { LEFT: 'ArrowLeft', UP: 'ArrowUp', RIGHT: 'ArrowRight', BOTTOM: 'ArrowDown' };
+
+		// Mouse buttons
+		this.mouseButtons = { LEFT: MOUSE.ROTATE, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.PAN };
+
+		// Touch fingers
+		this.touches = { ONE: TOUCH.ROTATE, TWO: TOUCH.DOLLY_PAN };
+
+		// for reset
+		this.target0 = this.target.clone();
+		this.position0 = this.object.position.clone();
+		this.zoom0 = this.object.zoom;
+
+		// the target DOM element for key events
+		this._domElementKeyEvents = null;
+
+		//
+		// public methods
+		//
+
+		this.getPolarAngle = function () {
+
+			return spherical.phi;
+
+		};
+
+		this.getAzimuthalAngle = function () {
+
+			return spherical.theta;
+
+		};
+
+		this.listenToKeyEvents = function ( domElement ) {
+
+			domElement.addEventListener( 'keydown', onKeyDown );
+			this._domElementKeyEvents = domElement;
+
+		};
+
+		this.saveState = function () {
+
+			scope.target0.copy( scope.target );
+			scope.position0.copy( scope.object.position );
+			scope.zoom0 = scope.object.zoom;
+
+		};
+
+		this.reset = function () {
+
+			scope.target.copy( scope.target0 );
+			scope.object.position.copy( scope.position0 );
+			scope.object.zoom = scope.zoom0;
+
+			scope.object.updateProjectionMatrix();
+			scope.dispatchEvent( _changeEvent );
+
+			scope.update();
+
+			state = STATE.NONE;
+
+		};
+
+		// this method is exposed, but perhaps it would be better if we can make it private...
+		this.update = function () {
+
+			const offset = new Vector3();
+
+			// so camera.up is the orbit axis
+			const quat = new Quaternion().setFromUnitVectors( object.up, new Vector3( 0, 1, 0 ) );
+			const quatInverse = quat.clone().invert();
+
+			const lastPosition = new Vector3();
+			const lastQuaternion = new Quaternion();
+
+			const twoPI = 2 * Math.PI;
+
+			return function update() {
+
+				const position = scope.object.position;
+
+				offset.copy( position ).sub( scope.target );
+
+				// rotate offset to "y-axis-is-up" space
+				offset.applyQuaternion( quat );
+
+				// angle from z-axis around y-axis
+				spherical.setFromVector3( offset );
+
+				if ( scope.autoRotate && state === STATE.NONE ) {
+
+					rotateLeft( getAutoRotationAngle() );
+
+				}
+
+				if ( scope.enableDamping ) {
+
+					spherical.theta += sphericalDelta.theta * scope.dampingFactor;
+					spherical.phi += sphericalDelta.phi * scope.dampingFactor;
+
+				} else {
+
+					spherical.theta += sphericalDelta.theta;
+					spherical.phi += sphericalDelta.phi;
+
+				}
+
+				// restrict theta to be between desired limits
+
+				let min = scope.minAzimuthAngle;
+				let max = scope.maxAzimuthAngle;
+
+				if ( isFinite( min ) && isFinite( max ) ) {
+
+					if ( min < - Math.PI ) min += twoPI; else if ( min > Math.PI ) min -= twoPI;
+
+					if ( max < - Math.PI ) max += twoPI; else if ( max > Math.PI ) max -= twoPI;
+
+					if ( min <= max ) {
+
+						spherical.theta = Math.max( min, Math.min( max, spherical.theta ) );
+
+					} else {
+
+						spherical.theta = ( spherical.theta > ( min + max ) / 2 ) ?
+							Math.max( min, spherical.theta ) :
+							Math.min( max, spherical.theta );
+
+					}
+
+				}
+
+				// restrict phi to be between desired limits
+				spherical.phi = Math.max( scope.minPolarAngle, Math.min( scope.maxPolarAngle, spherical.phi ) );
+
+				spherical.makeSafe();
+
+
+				spherical.radius *= scale;
+
+				// restrict radius to be between desired limits
+				spherical.radius = Math.max( scope.minDistance, Math.min( scope.maxDistance, spherical.radius ) );
+
+				// move target to panned location
+
+				if ( scope.enableDamping === true ) {
+
+					scope.target.addScaledVector( panOffset, scope.dampingFactor );
+
+				} else {
+
+					scope.target.add( panOffset );
+
+				}
+
+				offset.setFromSpherical( spherical );
+
+				// rotate offset back to "camera-up-vector-is-up" space
+				offset.applyQuaternion( quatInverse );
+
+				position.copy( scope.target ).add( offset );
+
+				scope.object.lookAt( scope.target );
+
+				if ( scope.enableDamping === true ) {
+
+					sphericalDelta.theta *= ( 1 - scope.dampingFactor );
+					sphericalDelta.phi *= ( 1 - scope.dampingFactor );
+
+					panOffset.multiplyScalar( 1 - scope.dampingFactor );
+
+				} else {
+
+					sphericalDelta.set( 0, 0, 0 );
+
+					panOffset.set( 0, 0, 0 );
+
+				}
+
+				scale = 1;
+
+				// update condition is:
+				// min(camera displacement, camera rotation in radians)^2 > EPS
+				// using small-angle approximation cos(x/2) = 1 - x^2 / 8
+
+				if ( zoomChanged ||
+					lastPosition.distanceToSquared( scope.object.position ) > EPS ||
+					8 * ( 1 - lastQuaternion.dot( scope.object.quaternion ) ) > EPS ) {
+
+					scope.dispatchEvent( _changeEvent );
+
+					lastPosition.copy( scope.object.position );
+					lastQuaternion.copy( scope.object.quaternion );
+					zoomChanged = false;
+
+					return true;
+
+				}
+
+				return false;
+
+			};
+
+		}();
+
+		this.dispose = function () {
+
+			scope.domElement.removeEventListener( 'contextmenu', onContextMenu );
+
+			scope.domElement.removeEventListener( 'pointerdown', onPointerDown );
+			scope.domElement.removeEventListener( 'wheel', onMouseWheel );
+
+			scope.domElement.removeEventListener( 'touchstart', onTouchStart );
+			scope.domElement.removeEventListener( 'touchend', onTouchEnd );
+			scope.domElement.removeEventListener( 'touchmove', onTouchMove );
+
+			scope.domElement.ownerDocument.removeEventListener( 'pointermove', onPointerMove );
+			scope.domElement.ownerDocument.removeEventListener( 'pointerup', onPointerUp );
+
+
+			if ( scope._domElementKeyEvents !== null ) {
+
+				scope._domElementKeyEvents.removeEventListener( 'keydown', onKeyDown );
+
+			}
+
+			//scope.dispatchEvent( { type: 'dispose' } ); // should this be added here?
+
+		};
+
+		//
+		// internals
+		//
+
+		const scope = this;
+
+		const STATE = {
+			NONE: - 1,
+			ROTATE: 0,
+			DOLLY: 1,
+			PAN: 2,
+			TOUCH_ROTATE: 3,
+			TOUCH_PAN: 4,
+			TOUCH_DOLLY_PAN: 5,
+			TOUCH_DOLLY_ROTATE: 6
+		};
+
+		let state = STATE.NONE;
+
+		const EPS = 0.000001;
+
+		// current position in spherical coordinates
+		const spherical = new Spherical();
+		const sphericalDelta = new Spherical();
+
+		let scale = 1;
+		const panOffset = new Vector3();
+		let zoomChanged = false;
+
+		const rotateStart = new Vector2();
+		const rotateEnd = new Vector2();
+		const rotateDelta = new Vector2();
+
+		const panStart = new Vector2();
+		const panEnd = new Vector2();
+		const panDelta = new Vector2();
+
+		const dollyStart = new Vector2();
+		const dollyEnd = new Vector2();
+		const dollyDelta = new Vector2();
+
+		function getAutoRotationAngle() {
+
+			return 2 * Math.PI / 60 / 60 * scope.autoRotateSpeed;
+
+		}
+
+		function getZoomScale() {
+
+			return Math.pow( 0.95, scope.zoomSpeed );
+
+		}
+
+		function rotateLeft( angle ) {
+
+			sphericalDelta.theta -= angle;
+
+		}
+
+		function rotateUp( angle ) {
+
+			sphericalDelta.phi -= angle;
+
+		}
+
+		const panLeft = function () {
+
+			const v = new Vector3();
+
+			return function panLeft( distance, objectMatrix ) {
+
+				v.setFromMatrixColumn( objectMatrix, 0 ); // get X column of objectMatrix
+				v.multiplyScalar( - distance );
+
+				panOffset.add( v );
+
+			};
+
+		}();
+
+		const panUp = function () {
+
+			const v = new Vector3();
+
+			return function panUp( distance, objectMatrix ) {
+
+				if ( scope.screenSpacePanning === true ) {
+
+					v.setFromMatrixColumn( objectMatrix, 1 );
+
+				} else {
+
+					v.setFromMatrixColumn( objectMatrix, 0 );
+					v.crossVectors( scope.object.up, v );
+
+				}
+
+				v.multiplyScalar( distance );
+
+				panOffset.add( v );
+
+			};
+
+		}();
+
+		// deltaX and deltaY are in pixels; right and down are positive
+		const pan = function () {
+
+			const offset = new Vector3();
+
+			return function pan( deltaX, deltaY ) {
+
+				const element = scope.domElement;
+
+				if ( scope.object.isPerspectiveCamera ) {
+
+					// perspective
+					const position = scope.object.position;
+					offset.copy( position ).sub( scope.target );
+					let targetDistance = offset.length();
+
+					// half of the fov is center to top of screen
+					targetDistance *= Math.tan( ( scope.object.fov / 2 ) * Math.PI / 180.0 );
+
+					// we use only clientHeight here so aspect ratio does not distort speed
+					panLeft( 2 * deltaX * targetDistance / element.clientHeight, scope.object.matrix );
+					panUp( 2 * deltaY * targetDistance / element.clientHeight, scope.object.matrix );
+
+				} else if ( scope.object.isOrthographicCamera ) {
+
+					// orthographic
+					panLeft( deltaX * ( scope.object.right - scope.object.left ) / scope.object.zoom / element.clientWidth, scope.object.matrix );
+					panUp( deltaY * ( scope.object.top - scope.object.bottom ) / scope.object.zoom / element.clientHeight, scope.object.matrix );
+
+				} else {
+
+					// camera neither orthographic nor perspective
+					console.warn( 'WARNING: OrbitControls.js encountered an unknown camera type - pan disabled.' );
+					scope.enablePan = false;
+
+				}
+
+			};
+
+		}();
+
+		function dollyOut( dollyScale ) {
+
+			if ( scope.object.isPerspectiveCamera ) {
+
+				scale /= dollyScale;
+
+			} else if ( scope.object.isOrthographicCamera ) {
+
+				scope.object.zoom = Math.max( scope.minZoom, Math.min( scope.maxZoom, scope.object.zoom * dollyScale ) );
+				scope.object.updateProjectionMatrix();
+				zoomChanged = true;
+
+			} else {
+
+				console.warn( 'WARNING: OrbitControls.js encountered an unknown camera type - dolly/zoom disabled.' );
+				scope.enableZoom = false;
+
+			}
+
+		}
+
+		function dollyIn( dollyScale ) {
+
+			if ( scope.object.isPerspectiveCamera ) {
+
+				scale *= dollyScale;
+
+			} else if ( scope.object.isOrthographicCamera ) {
+
+				scope.object.zoom = Math.max( scope.minZoom, Math.min( scope.maxZoom, scope.object.zoom / dollyScale ) );
+				scope.object.updateProjectionMatrix();
+				zoomChanged = true;
+
+			} else {
+
+				console.warn( 'WARNING: OrbitControls.js encountered an unknown camera type - dolly/zoom disabled.' );
+				scope.enableZoom = false;
+
+			}
+
+		}
+
+		//
+		// event callbacks - update the object state
+		//
+
+		function handleMouseDownRotate( event ) {
+
+			rotateStart.set( event.clientX, event.clientY );
+
+		}
+
+		function handleMouseDownDolly( event ) {
+
+			dollyStart.set( event.clientX, event.clientY );
+
+		}
+
+		function handleMouseDownPan( event ) {
+
+			panStart.set( event.clientX, event.clientY );
+
+		}
+
+		function handleMouseMoveRotate( event ) {
+
+			rotateEnd.set( event.clientX, event.clientY );
+
+			rotateDelta.subVectors( rotateEnd, rotateStart ).multiplyScalar( scope.rotateSpeed );
+
+			const element = scope.domElement;
+
+			rotateLeft( 2 * Math.PI * rotateDelta.x / element.clientHeight ); // yes, height
+
+			rotateUp( 2 * Math.PI * rotateDelta.y / element.clientHeight );
+
+			rotateStart.copy( rotateEnd );
+
+			scope.update();
+
+		}
+
+		function handleMouseMoveDolly( event ) {
+
+			dollyEnd.set( event.clientX, event.clientY );
+
+			dollyDelta.subVectors( dollyEnd, dollyStart );
+
+			if ( dollyDelta.y > 0 ) {
+
+				dollyOut( getZoomScale() );
+
+			} else if ( dollyDelta.y < 0 ) {
+
+				dollyIn( getZoomScale() );
+
+			}
+
+			dollyStart.copy( dollyEnd );
+
+			scope.update();
+
+		}
+
+		function handleMouseMovePan( event ) {
+
+			panEnd.set( event.clientX, event.clientY );
+
+			panDelta.subVectors( panEnd, panStart ).multiplyScalar( scope.panSpeed );
+
+			pan( panDelta.x, panDelta.y );
+
+			panStart.copy( panEnd );
+
+			scope.update();
+
+		}
+
+		function handleMouseWheel( event ) {
+
+			if ( event.deltaY < 0 ) {
+
+				dollyIn( getZoomScale() );
+
+			} else if ( event.deltaY > 0 ) {
+
+				dollyOut( getZoomScale() );
+
+			}
+
+			scope.update();
+
+		}
+
+		function handleKeyDown( event ) {
+
+			let needsUpdate = false;
+
+			switch ( event.code ) {
+
+				case scope.keys.UP:
+					pan( 0, scope.keyPanSpeed );
+					needsUpdate = true;
+					break;
+
+				case scope.keys.BOTTOM:
+					pan( 0, - scope.keyPanSpeed );
+					needsUpdate = true;
+					break;
+
+				case scope.keys.LEFT:
+					pan( scope.keyPanSpeed, 0 );
+					needsUpdate = true;
+					break;
+
+				case scope.keys.RIGHT:
+					pan( - scope.keyPanSpeed, 0 );
+					needsUpdate = true;
+					break;
+
+			}
+
+			if ( needsUpdate ) {
+
+				// prevent the browser from scrolling on cursor keys
+				event.preventDefault();
+
+				scope.update();
+
+			}
+
+
+		}
+
+		function handleTouchStartRotate( event ) {
+
+			if ( event.touches.length == 1 ) {
+
+				rotateStart.set( event.touches[ 0 ].pageX, event.touches[ 0 ].pageY );
+
+			} else {
+
+				const x = 0.5 * ( event.touches[ 0 ].pageX + event.touches[ 1 ].pageX );
+				const y = 0.5 * ( event.touches[ 0 ].pageY + event.touches[ 1 ].pageY );
+
+				rotateStart.set( x, y );
+
+			}
+
+		}
+
+		function handleTouchStartPan( event ) {
+
+			if ( event.touches.length == 1 ) {
+
+				panStart.set( event.touches[ 0 ].pageX, event.touches[ 0 ].pageY );
+
+			} else {
+
+				const x = 0.5 * ( event.touches[ 0 ].pageX + event.touches[ 1 ].pageX );
+				const y = 0.5 * ( event.touches[ 0 ].pageY + event.touches[ 1 ].pageY );
+
+				panStart.set( x, y );
+
+			}
+
+		}
+
+		function handleTouchStartDolly( event ) {
+
+			const dx = event.touches[ 0 ].pageX - event.touches[ 1 ].pageX;
+			const dy = event.touches[ 0 ].pageY - event.touches[ 1 ].pageY;
+
+			const distance = Math.sqrt( dx * dx + dy * dy );
+
+			dollyStart.set( 0, distance );
+
+		}
+
+		function handleTouchStartDollyPan( event ) {
+
+			if ( scope.enableZoom ) handleTouchStartDolly( event );
+
+			if ( scope.enablePan ) handleTouchStartPan( event );
+
+		}
+
+		function handleTouchStartDollyRotate( event ) {
+
+			if ( scope.enableZoom ) handleTouchStartDolly( event );
+
+			if ( scope.enableRotate ) handleTouchStartRotate( event );
+
+		}
+
+		function handleTouchMoveRotate( event ) {
+
+			if ( event.touches.length == 1 ) {
+
+				rotateEnd.set( event.touches[ 0 ].pageX, event.touches[ 0 ].pageY );
+
+			} else {
+
+				const x = 0.5 * ( event.touches[ 0 ].pageX + event.touches[ 1 ].pageX );
+				const y = 0.5 * ( event.touches[ 0 ].pageY + event.touches[ 1 ].pageY );
+
+				rotateEnd.set( x, y );
+
+			}
+
+			rotateDelta.subVectors( rotateEnd, rotateStart ).multiplyScalar( scope.rotateSpeed );
+
+			const element = scope.domElement;
+
+			rotateLeft( 2 * Math.PI * rotateDelta.x / element.clientHeight ); // yes, height
+
+			rotateUp( 2 * Math.PI * rotateDelta.y / element.clientHeight );
+
+			rotateStart.copy( rotateEnd );
+
+		}
+
+		function handleTouchMovePan( event ) {
+
+			if ( event.touches.length == 1 ) {
+
+				panEnd.set( event.touches[ 0 ].pageX, event.touches[ 0 ].pageY );
+
+			} else {
+
+				const x = 0.5 * ( event.touches[ 0 ].pageX + event.touches[ 1 ].pageX );
+				const y = 0.5 * ( event.touches[ 0 ].pageY + event.touches[ 1 ].pageY );
+
+				panEnd.set( x, y );
+
+			}
+
+			panDelta.subVectors( panEnd, panStart ).multiplyScalar( scope.panSpeed );
+
+			pan( panDelta.x, panDelta.y );
+
+			panStart.copy( panEnd );
+
+		}
+
+		function handleTouchMoveDolly( event ) {
+
+			const dx = event.touches[ 0 ].pageX - event.touches[ 1 ].pageX;
+			const dy = event.touches[ 0 ].pageY - event.touches[ 1 ].pageY;
+
+			const distance = Math.sqrt( dx * dx + dy * dy );
+
+			dollyEnd.set( 0, distance );
+
+			dollyDelta.set( 0, Math.pow( dollyEnd.y / dollyStart.y, scope.zoomSpeed ) );
+
+			dollyOut( dollyDelta.y );
+
+			dollyStart.copy( dollyEnd );
+
+		}
+
+		function handleTouchMoveDollyPan( event ) {
+
+			if ( scope.enableZoom ) handleTouchMoveDolly( event );
+
+			if ( scope.enablePan ) handleTouchMovePan( event );
+
+		}
+
+		function handleTouchMoveDollyRotate( event ) {
+
+			if ( scope.enableZoom ) handleTouchMoveDolly( event );
+
+			if ( scope.enableRotate ) handleTouchMoveRotate( event );
+
+		}
+
+		//
+		// event handlers - FSM: listen for events and reset state
+		//
+
+		function onPointerDown( event ) {
+
+			if ( scope.enabled === false ) return;
+
+			switch ( event.pointerType ) {
+
+				case 'mouse':
+				case 'pen':
+					onMouseDown( event );
+					break;
+
+				// TODO touch
+
+			}
+
+		}
+
+		function onPointerMove( event ) {
+
+			if ( scope.enabled === false ) return;
+
+			switch ( event.pointerType ) {
+
+				case 'mouse':
+				case 'pen':
+					onMouseMove( event );
+					break;
+
+				// TODO touch
+
+			}
+
+		}
+
+		function onPointerUp( event ) {
+
+			switch ( event.pointerType ) {
+
+				case 'mouse':
+				case 'pen':
+					onMouseUp();
+					break;
+
+				// TODO touch
+
+			}
+
+		}
+
+		function onMouseDown( event ) {
+
+			// Prevent the browser from scrolling.
+			event.preventDefault();
+
+			// Manually set the focus since calling preventDefault above
+			// prevents the browser from setting it automatically.
+
+			scope.domElement.focus ? scope.domElement.focus() : window.focus();
+
+			let mouseAction;
+
+			switch ( event.button ) {
+
+				case 0:
+
+					mouseAction = scope.mouseButtons.LEFT;
+					break;
+
+				case 1:
+
+					mouseAction = scope.mouseButtons.MIDDLE;
+					break;
+
+				case 2:
+
+					mouseAction = scope.mouseButtons.RIGHT;
+					break;
+
+				default:
+
+					mouseAction = - 1;
+
+			}
+
+			switch ( mouseAction ) {
+
+				case MOUSE.DOLLY:
+
+					if ( scope.enableZoom === false ) return;
+
+					handleMouseDownDolly( event );
+
+					state = STATE.DOLLY;
+
+					break;
+
+				case MOUSE.ROTATE:
+
+					if ( event.ctrlKey || event.metaKey || event.shiftKey ) {
+
+						if ( scope.enablePan === false ) return;
+
+						handleMouseDownPan( event );
+
+						state = STATE.PAN;
+
+					} else {
+
+						if ( scope.enableRotate === false ) return;
+
+						handleMouseDownRotate( event );
+
+						state = STATE.ROTATE;
+
+					}
+
+					break;
+
+				case MOUSE.PAN:
+
+					if ( event.ctrlKey || event.metaKey || event.shiftKey ) {
+
+						if ( scope.enableRotate === false ) return;
+
+						handleMouseDownRotate( event );
+
+						state = STATE.ROTATE;
+
+					} else {
+
+						if ( scope.enablePan === false ) return;
+
+						handleMouseDownPan( event );
+
+						state = STATE.PAN;
+
+					}
+
+					break;
+
+				default:
+
+					state = STATE.NONE;
+
+			}
+
+			if ( state !== STATE.NONE ) {
+
+				scope.domElement.ownerDocument.addEventListener( 'pointermove', onPointerMove );
+				scope.domElement.ownerDocument.addEventListener( 'pointerup', onPointerUp );
+
+				scope.dispatchEvent( _startEvent );
+
+			}
+
+		}
+
+		function onMouseMove( event ) {
+
+			if ( scope.enabled === false ) return;
+
+			event.preventDefault();
+
+			switch ( state ) {
+
+				case STATE.ROTATE:
+
+					if ( scope.enableRotate === false ) return;
+
+					handleMouseMoveRotate( event );
+
+					break;
+
+				case STATE.DOLLY:
+
+					if ( scope.enableZoom === false ) return;
+
+					handleMouseMoveDolly( event );
+
+					break;
+
+				case STATE.PAN:
+
+					if ( scope.enablePan === false ) return;
+
+					handleMouseMovePan( event );
+
+					break;
+
+			}
+
+		}
+
+		function onMouseUp( event ) {
+
+			scope.domElement.ownerDocument.removeEventListener( 'pointermove', onPointerMove );
+			scope.domElement.ownerDocument.removeEventListener( 'pointerup', onPointerUp );
+
+			if ( scope.enabled === false ) return;
+
+			scope.dispatchEvent( _endEvent );
+
+			state = STATE.NONE;
+
+		}
+
+		function onMouseWheel( event ) {
+
+			if ( scope.enabled === false || scope.enableZoom === false || ( state !== STATE.NONE && state !== STATE.ROTATE ) ) return;
+
+			event.preventDefault();
+
+			scope.dispatchEvent( _startEvent );
+
+			handleMouseWheel( event );
+
+			scope.dispatchEvent( _endEvent );
+
+		}
+
+		function onKeyDown( event ) {
+
+			if ( scope.enabled === false || scope.enablePan === false ) return;
+
+			handleKeyDown( event );
+
+		}
+
+		function onTouchStart( event ) {
+
+			if ( scope.enabled === false ) return;
+
+			event.preventDefault(); // prevent scrolling
+
+			switch ( event.touches.length ) {
+
+				case 1:
+
+					switch ( scope.touches.ONE ) {
+
+						case TOUCH.ROTATE:
+
+							if ( scope.enableRotate === false ) return;
+
+							handleTouchStartRotate( event );
+
+							state = STATE.TOUCH_ROTATE;
+
+							break;
+
+						case TOUCH.PAN:
+
+							if ( scope.enablePan === false ) return;
+
+							handleTouchStartPan( event );
+
+							state = STATE.TOUCH_PAN;
+
+							break;
+
+						default:
+
+							state = STATE.NONE;
+
+					}
+
+					break;
+
+				case 2:
+
+					switch ( scope.touches.TWO ) {
+
+						case TOUCH.DOLLY_PAN:
+
+							if ( scope.enableZoom === false && scope.enablePan === false ) return;
+
+							handleTouchStartDollyPan( event );
+
+							state = STATE.TOUCH_DOLLY_PAN;
+
+							break;
+
+						case TOUCH.DOLLY_ROTATE:
+
+							if ( scope.enableZoom === false && scope.enableRotate === false ) return;
+
+							handleTouchStartDollyRotate( event );
+
+							state = STATE.TOUCH_DOLLY_ROTATE;
+
+							break;
+
+						default:
+
+							state = STATE.NONE;
+
+					}
+
+					break;
+
+				default:
+
+					state = STATE.NONE;
+
+			}
+
+			if ( state !== STATE.NONE ) {
+
+				scope.dispatchEvent( _startEvent );
+
+			}
+
+		}
+
+		function onTouchMove( event ) {
+
+			if ( scope.enabled === false ) return;
+
+			event.preventDefault(); // prevent scrolling
+
+			switch ( state ) {
+
+				case STATE.TOUCH_ROTATE:
+
+					if ( scope.enableRotate === false ) return;
+
+					handleTouchMoveRotate( event );
+
+					scope.update();
+
+					break;
+
+				case STATE.TOUCH_PAN:
+
+					if ( scope.enablePan === false ) return;
+
+					handleTouchMovePan( event );
+
+					scope.update();
+
+					break;
+
+				case STATE.TOUCH_DOLLY_PAN:
+
+					if ( scope.enableZoom === false && scope.enablePan === false ) return;
+
+					handleTouchMoveDollyPan( event );
+
+					scope.update();
+
+					break;
+
+				case STATE.TOUCH_DOLLY_ROTATE:
+
+					if ( scope.enableZoom === false && scope.enableRotate === false ) return;
+
+					handleTouchMoveDollyRotate( event );
+
+					scope.update();
+
+					break;
+
+				default:
+
+					state = STATE.NONE;
+
+			}
+
+		}
+
+		function onTouchEnd( event ) {
+
+			if ( scope.enabled === false ) return;
+
+			scope.dispatchEvent( _endEvent );
+
+			state = STATE.NONE;
+
+		}
+
+		function onContextMenu( event ) {
+
+			if ( scope.enabled === false ) return;
+
+			event.preventDefault();
+
+		}
+
+		//
+
+		scope.domElement.addEventListener( 'contextmenu', onContextMenu );
+
+		scope.domElement.addEventListener( 'pointerdown', onPointerDown );
+		scope.domElement.addEventListener( 'wheel', onMouseWheel, { passive: false } );
+
+		scope.domElement.addEventListener( 'touchstart', onTouchStart, { passive: false } );
+		scope.domElement.addEventListener( 'touchend', onTouchEnd );
+		scope.domElement.addEventListener( 'touchmove', onTouchMove, { passive: false } );
+
+		// force an update at start
+
+		this.update();
 
 	}
 
@@ -45715,102 +47164,126 @@ _forEachName("x,y,z,top,right,bottom,left,width,height,fontSize,padding,margin,p
 gsap.registerPlugin(CSSPlugin);var gsapWithCSS = gsap.registerPlugin(CSSPlugin) || gsap;
     // to protect from tree shaking
 gsapWithCSS.core.Tween;function WebXR() { }
-let XR = new WebXR();
+let solarSailer = new WebXR();
 
-XR.init = function(XRtype) {
+solarSailer.init = function(XRtype) {
     console.log('|||| Init WebXR');
-    this.XRtype = XRtype;
-    this.container = document.querySelector('.js-xr-container');
-    this.camera;
-    this.gl;
-    this.scene;
-    this.controls;
-    this.renderer;
-    this.referenceSpace;
-    this.hitTestSource;
-    this.viewerPosition = new Vector3();
-    this.session;
-    this.currentSession = null;
-    this.controller;
-    this.overlay = document.querySelector('.js-ar-overlay');
-    this.closeXRbtn = document.querySelector('.js-close-webxr');
+    solarSailer.XRtype = XRtype;
+    solarSailer.container = document.querySelector('.js-xr-container');
+    solarSailer.camera;
+    solarSailer.siteCamera;
+    solarSailer.gl;
+    solarSailer.scene;
+    solarSailer.controls;
+    solarSailer.renderer;
+    solarSailer.referenceSpace;
+    solarSailer.hitTestSource;
+    solarSailer.viewerPosition = new Vector3();
+    solarSailer.session;
+    solarSailer.currentSession = null;
+    solarSailer.controller;
+    solarSailer.overlay = document.querySelector('.js-ar-overlay');
+    solarSailer.closeXRbtn = document.querySelector('.js-close-webxr');
 
-    this.scene = new Scene();
-    this.camera = new PerspectiveCamera(45, window.innerHeight / window.innerWidth, 1, 200);
+    solarSailer.camera = new PerspectiveCamera();
+    solarSailer.camera.matrixAutoUpdate = false;
+    solarSailer.siteCamera = new PerspectiveCamera(45, window.innerHeight / window.innerWidth, 1, 200);
+    solarSailer.scene = new Scene();
+
+    solarSailer.textureLoader = new TextureLoader();
+    solarSailer.starMap = solarSailer.textureLoader.load( 'dist/images/textures/star-map-3.jpg' );
+    solarSailer.starMap.mapping = EquirectangularReflectionMapping;
+    solarSailer.starMap.encoding = sRGBEncoding;
+
+    solarSailer.renderer = new WebGLRenderer({
+        antialias: true,
+        alpha: true,
+        outputEncoding: sRGBEncoding
+    });
+    solarSailer.renderer.setPixelRatio(window.devicePixelRatio);
+    solarSailer.renderer.setSize(document.body.clientWidth, document.body.clientHeight);
+    solarSailer.renderer.xr.enabled = true;
+    solarSailer.container.appendChild(solarSailer.renderer.domElement);
+
+    if(solarSailer.XRtype == 'ar') {
+        solarSailer.session = {
+            requiredFeatures: ['local-floor', 'hit-test']
+        };
+    } else if (solarSailer.XRtype == 'vr') {
+        solarSailer.session = {
+            optionalFeatures: [ 'local-floor', 'bounded-floor', 'hand-tracking', 'hit-test' ]
+        };
+    }
+
+    if (solarSailer.session.domOverlay === undefined && solarSailer.XRtype == 'ar') {
+
+        if ( solarSailer.session.optionalFeatures === undefined) {
+            solarSailer.session.optionalFeatures = [];
+        }
+
+        solarSailer.session.optionalFeatures.push('dom-overlay');
+        solarSailer.session.domOverlay = {
+            root: solarSailer.overlay
+        };
+
+    }
+
+    solarSailer.closeXRbtn.addEventListener('click', e => {
+        solarSailer.currentSession.end();
+    });
+
+    const geometry = new SphereGeometry(100, 64, 64);
+    const material = new MeshBasicMaterial({
+        map: new TextureLoader().load('dist/images/textures/star-map-2.jpg'), 
+        side: BackSide
+    });
+    solarSailer.sky = new Mesh( geometry, material );
+    solarSailer.scene.add( solarSailer.sky );
+
+    solarSailer.siteCamera.position.z = 5;
 
     buildSpacecraft();
     initSun();
     setupLights();
 
-    this.renderer = new WebGLRenderer({
-        antialias: true,
-        alpha: true
-    });
-    this.renderer.setPixelRatio(window.devicePixelRatio);
-    this.renderer.setSize(document.body.clientWidth, document.body.clientHeight);
-    this.renderer.xr.enabled = true;
-    this.container.appendChild(this.renderer.domElement);
+    solarSailer.animate();
 
-    if(this.XRtype == 'ar') {
-        this.session = {
-            requiredFeatures: ['local-floor', 'hit-test']
-        };
-    } else if (this.XRtype == 'vr') {
-        this.session = {
-            optionalFeatures: [ 'local-floor', 'bounded-floor', 'hand-tracking', 'hit-test' ]
-        };
-    }
-
-    if (this.session.domOverlay === undefined && this.XRtype == 'ar') {
-
-        if ( this.session.optionalFeatures === undefined) {
-            this.session.optionalFeatures = [];
-        }
-
-        this.session.optionalFeatures.push('dom-overlay');
-        this.session.domOverlay = {
-            root: this.overlay
-        };
-
-    }
-
-    this.closeXRbtn.addEventListener('click', e => {
-        this.currentSession.end();
-    });
+    window.addEventListener('resize', onWindowResize, false);
+    onWindowResize();
 };
 
-XR.startXRSession = function() {
-    if (this.currentSession === null) {
-        navigator.xr.requestSession('immersive-' + XR.XRtype, this.session).then(XR.onSessionStarted);
+solarSailer.startXRSession = function() {
+    if (solarSailer.currentSession === null) {
+        navigator.xr.requestSession('immersive-' + solarSailer.XRtype, solarSailer.session).then(solarSailer.onSessionStarted);
     }
 };
 
-XR.onSessionStarted = async function(session) {
-    console.log('|||| ' + XR.XRtype.toUpperCase() + ' session started');
-    XR.animate(true);
-    session.addEventListener('end', XR.onSessionEnded);
+solarSailer.onSessionStarted = async function(session) {
+    console.log('|||| ' + solarSailer.XRtype.toUpperCase() + ' session started');
+    // solarSailer.animate();
+    session.addEventListener('end', solarSailer.onSessionEnded);
 
-    await XR.renderer.xr.setSession(session);
-    XR.currentSession = session;
+    await solarSailer.renderer.xr.setSession(session);
+    solarSailer.currentSession = session;
 
-    XR.camera = new PerspectiveCamera();
-    XR.camera.matrixAutoUpdate = false;
+    // solarSailer.camera = new THREE.PerspectiveCamera();
+    // solarSailer.camera.matrixAutoUpdate = false;
 
     // A 'local' reference space has a native origin that is located
     // near the viewer's position at the time the session was created.
-    XR.referenceSpace = await XR.currentSession.requestReferenceSpace("local-floor").catch(e => {
+    solarSailer.referenceSpace = await solarSailer.currentSession.requestReferenceSpace("local-floor").catch(e => {
         console.error(e);
     });
 
     // Create another XRReferenceSpace that has the viewer as the origin.
-    XR.viewerSpace = await XR.currentSession.requestReferenceSpace('viewer').catch(e => {
+    solarSailer.viewerSpace = await solarSailer.currentSession.requestReferenceSpace('viewer').catch(e => {
         console.error(e);
     });
 
-    if(XR.XRtype == 'ar') {
+    if(solarSailer.XRtype == 'ar') {
         // Perform hit testing using the viewer as origin.
-        XR.hitTestSource = await XR.currentSession.requestHitTestSource({
-            space: XR.viewerSpace
+        solarSailer.hitTestSource = await solarSailer.currentSession.requestHitTestSource({
+            space: solarSailer.viewerSpace
         }).catch(e => {
             console.error(e);
         });
@@ -45818,117 +47291,150 @@ XR.onSessionStarted = async function(session) {
 
     document.querySelector('body').classList.add('has-xr');
     
-    if(XR.XRtype == 'ar') {
+    if(solarSailer.XRtype == 'ar') {
         document.querySelector('body').classList.add('has-ar');
     }
 
-    XR.initControllers();
+    solarSailer.initControllers();
     
     session.addEventListener('inputsourceschange', onInputSourcesChange);
 
 };
 
-XR.onSessionEnded = async function() {
-    XR.currentSession.removeEventListener('end', XR.onSessionEnded);
-    XR.currentSession = null;
-    XR.animate(false);
+solarSailer.onSessionEnded = async function() {
+    solarSailer.currentSession.removeEventListener('end', solarSailer.onSessionEnded);
+    solarSailer.currentSession = null;
+    // solarSailer.stopAnimate();
 
     document.querySelector('body').classList.remove('has-xr', 'has-ar', 'has-vr');
 };
 
-XR.animate = function(animate) {
-    if(animate){
-        XR.renderer.setAnimationLoop(XR.render);
-    } else {
-        XR.renderer.setAnimationLoop(null);
-    }
+solarSailer.animate = function() {
+    solarSailer.renderer.setAnimationLoop(solarSailer.render);
 };
 
-XR.angleCaster = new Raycaster();
+solarSailer.stopAnimate = function() {
+    solarSailer.renderer.setAnimationLoop(null);
+};
 
-XR.render = function(time, frame) {
+solarSailer.render = function(time, frame) {
 
-    XR.sun.rotation.x -= 0.0015;
-    XR.sun.rotation.y -= 0.0015;
-    XR.sun.rotation.z -= 0.0015;
+    if(solarSailer.sun) {
+        solarSailer.sun.rotation.x -= 0.0015;
+        solarSailer.sun.rotation.y -= 0.0015;
+        solarSailer.sun.rotation.z -= 0.0015;
+    }
 
-    moveSpacecraft();
+    if (solarSailer.renderer.xr.isPresenting) {
+        solarSailer.sky.visible = false;
+        solarSailer.sun.visible = true;
+        attachSunToViewer();
 
-    attachSunToViewer();
+        moveSpacecraft();
 
-    new Vector3();
-
-    // XR.spacecraft.getWorldDirection(dir);
-    // XR.spacecraft.getWorldDirection(dir);
-    // console.log(dir);
-
-    // XR.sun.position.set(XR.camera.position);
-    // XR.sun.position.set(XR.viewerPosition);
-    // const raycaster = new THREE.Raycaster();
-    // Update raycaster
-    // Update it to use the proper direction
-
-    // console.log(dirToSpacecraft.subVectors(XR.spacecraft.position, XR.camera.position));
-    
-    // // Setup racaster
-    // const v2 = new THREE.Vector2(0, 0);
-    // XR.lightRaycaster.setFromCamera( v2,  XR.camera );
-    // // Update it to use the proper direction
-    // // console.log(XR.viewerPosition);
-    // // XR.lightRaycaster.set( XR.camera, direction);
-    
-    // XR.arrowHelper.setDirection(XR.lightRaycaster.ray.direction);
-
-    if (XR.renderer.xr.isPresenting) {
-        const pose = frame.getViewerPose(XR.referenceSpace);
+        const pose = frame.getViewerPose(solarSailer.referenceSpace);
         if (pose) {
             // In mobile XR, we only have one view.
             const view = pose.views[0];
 
-            if(XR.XRtype == 'ar') {
+            if(solarSailer.XRtype == 'ar') {
                 // Use the view's transform matrix and projection matrix to configure the THREE.camera.
-                XR.camera.matrix.fromArray(view.transform.matrix);
-                XR.camera.projectionMatrix.fromArray(view.projectionMatrix);
-                XR.camera.updateMatrixWorld(true);
+                solarSailer.camera.matrix.fromArray(view.transform.matrix);
+                solarSailer.camera.projectionMatrix.fromArray(view.projectionMatrix);
+                solarSailer.camera.updateMatrixWorld(true);
 
-                const hitTestResults = frame.getHitTestResults(XR.hitTestSource);
+                const hitTestResults = frame.getHitTestResults(solarSailer.hitTestSource);
 
                 if (hitTestResults.length > 0) ;
             }
 
             // Render the scene with THREE.WebGLRenderer.
-            XR.renderer.render(XR.scene, XR.camera);
+            solarSailer.renderer.render(solarSailer.scene, solarSailer.camera);
         }
+    } else {
+        solarSailer.sky.visible = true;
+        solarSailer.sun.visible = false;
+        solarSailer.controls = new OrbitControls(solarSailer.siteCamera, solarSailer.renderer.domElement);
+        solarSailer.controls.autoRotate = true;
+        solarSailer.controls.autoRotateSpeed = 0.25;
+        solarSailer.controls.rotateSpeed = 0.1;
+        solarSailer.controls.dampingFactor = 0.5;
+        solarSailer.controls.minZoom = 1;
+        solarSailer.controls.maxZoom = 5;
+        solarSailer.controls.zoomSpeed = 0.05;
+        solarSailer.controls.enablePan = false;
+        // solarSailer.controls.maxPolarAngle = Math.PI / 2;
+        solarSailer.controls.target = solarSailer.spacecraft.position;
+
+        solarSailer.controls.update();
+        solarSailer.renderer.render(solarSailer.scene, solarSailer.siteCamera);
+
     }
 };
 
-XR.initControllers = function() {
+solarSailer.initControllers = function() {
 
-    console.log(XR.currentSession);
+    console.log(solarSailer.currentSession);
 
     // controllers
-    XR.controller1 = XR.renderer.xr.getController( 0 );
-    XR.controller1.addEventListener('select', onSelect);
+    solarSailer.controller1 = solarSailer.renderer.xr.getController( 0 );
+    solarSailer.controller1.addEventListener('select', onSelect);
     
-    XR.scene.add( XR.controller1 );
+    solarSailer.scene.add( solarSailer.controller1 );
 
 };
 
 function buildSpacecraft() {
-    XR.spacecraft = new Group();
-    const geometry = new BoxGeometry( 0.75, 0.75, 0.1 );
-    const material = new MeshPhysicalMaterial({
-        color: '#d4af37',
+    solarSailer.spacecraft = new Group();
+
+    const fuselageGeo = new BoxGeometry( 0.05, 0.05, 0.15 );
+    const fuselageMat = new MeshPhysicalMaterial({
+        color: '#ffffff',
         metalness: 1,
-        roughness: 1,
-        clearcoat: 1
+        roughness: 0,
+        clearcoat: 1,
+        envMap: solarSailer.starMap,
+        envMapIntensity: 2
       });
-    XR.spacecraftBox = new Mesh( geometry, material );
-    XR.spacecraft.add(XR.spacecraftBox);
+    solarSailer.fuselage = new Mesh( fuselageGeo, fuselageMat );
+    solarSailer.spacecraft.add(solarSailer.fuselage);
     
-    XR.spacecraft.position.set(0, XR.camera.position.y + 1.2, -1);
-    XR.scene.add( XR.spacecraft );
-    XR.oldCameraPosition = XR.camera.position;
+    const mastGeo = new BoxGeometry( 0.01, 2, 0.01 );
+    const mastMat = new MeshPhysicalMaterial({
+        color: '#504f53',
+        metalness: 0,
+        roughness: 1,
+        clearcoat: 0,
+        precision: 'highp'
+    });
+    solarSailer.mast1 = new Mesh( mastGeo, mastMat );
+    solarSailer.mast2 = new Mesh( mastGeo, mastMat );
+    solarSailer.mast1.translateZ(-0.06);
+    solarSailer.mast2.translateZ(-0.06);
+    solarSailer.mast2.rotateZ(MathUtils.degToRad(90));
+    solarSailer.spacecraft.add(solarSailer.mast1);
+    solarSailer.spacecraft.add(solarSailer.mast2);
+    
+
+    const sailGeo = new PlaneGeometry( 1.4, 1.4);
+    const sailMat = new MeshPhysicalMaterial({
+        color: '#000000',
+        metalness: 1,
+        roughness: 0,
+        clearcoat: 1,
+        opacity: 0.4,
+        transparent: true,
+        side: DoubleSide,
+        envMap: solarSailer.starMap,
+        metalnessMap: new TextureLoader().load('dist/images/textures/sail-reflection-map.jpg'),
+    });
+    solarSailer.sail = new Mesh( sailGeo, sailMat );
+    solarSailer.sail.translateZ(-0.06);
+    solarSailer.sail.rotateZ(MathUtils.degToRad(45));
+    solarSailer.spacecraft.add(solarSailer.sail);
+    
+    solarSailer.spacecraft.position.set(0, solarSailer.siteCamera.position.y + 1.2, -1);
+    solarSailer.scene.add( solarSailer.spacecraft );
 
     const cameraFacerGeo = new BoxGeometry( 0.25, 0.25, 0.25 );
     const cameraFacerMat = new MeshBasicMaterial({
@@ -45936,58 +47442,58 @@ function buildSpacecraft() {
         opacity : 0,
         transparent: true
       });
-    XR.cameraFacer = new Mesh( cameraFacerGeo, cameraFacerMat );
-    XR.scene.add( XR.cameraFacer );
-
+    solarSailer.cameraFacer = new Mesh( cameraFacerGeo, cameraFacerMat );
+    solarSailer.scene.add( solarSailer.cameraFacer );
 }
 
 function moveSpacecraft() {
-    XR.cameraFacer.position.copy(XR.spacecraft.position);
+    solarSailer.cameraFacer.position.copy(solarSailer.spacecraft.position);
 
-    if(XR.sunShining) {
-        XR.cameraFacer.lookAt(XR.camera.position);
+    if(solarSailer.sunShining) {
+        solarSailer.cameraFacer.lookAt(solarSailer.sunGroup.position);
         var q1 = new Quaternion();
-        q1.copy(XR.cameraFacer.quaternion);
+        q1.copy(solarSailer.cameraFacer.quaternion);
 
-        XR.spacecraft.quaternion.slerp(q1, 0.1);
+        solarSailer.spacecraft.quaternion.slerp(q1, 0.05);
 
-        XR.camera.getWorldPosition(XR.viewerPosition);
+        solarSailer.camera.getWorldPosition(solarSailer.viewerPosition);
 
-        let speedFactor = -0.008 / XR.viewerPosition.distanceTo(XR.spacecraft.position);
-        XR.spacecraft.translateZ(speedFactor);
+        let speedFactor = -0.008 / solarSailer.viewerPosition.distanceTo(solarSailer.spacecraft.position);
+        solarSailer.spacecraft.translateZ(speedFactor);
     }
 }
 
 function initSun() {
     
-    XR.sunGroup = new Group();
-    XR.sunOnColor = new Color( 0x8b6200 );
-    XR.sunOffColor = new Color( 0x211801 );
-    XR.sunColor = XR.sunOffColor;
+    solarSailer.sunGroup = new Group();
+    solarSailer.sunOnColor = new Color( 0x8b6200 );
+    solarSailer.sunOffColor = new Color( 0x211801 );
+    solarSailer.sunColor = solarSailer.sunOffColor;
     const sunGeo = new SphereGeometry(0.13, 128, 128);
     const sunMat = new MeshStandardMaterial({
-        color: XR.sunColor,
+        color: solarSailer.sunColor,
         map: new TextureLoader().load('dist/images/textures/sun-color-map.jpg'),
         displacementMap: new TextureLoader().load('dist/images/textures/sun-displacement-map.jpg'),
         displacementScale: 0.003,
         emissiveMap: new TextureLoader().load('dist/images/textures/sun-displacement-map.jpg'),
         emissiveIntensity: 0.5
       });
-    XR.sun = new Mesh( sunGeo, sunMat );
-    XR.sun.name = "Sol";
-    XR.sunGroup.add(XR.sun);
+    //   const sunMat = new THREE.MeshBasicMaterial( { color: 0x00ff00 } );
+    solarSailer.sun = new Mesh( sunGeo, sunMat );
+    solarSailer.sun.name = "Sol";
+    solarSailer.sunGroup.add(solarSailer.sun);
 
 	var sunGlowSpriteMat = new SpriteMaterial( 
     { 
         alphaMap: new TextureLoader().load('dist/images/textures/glow.png'), 
         color: 0xfdb813, 
     });
-    XR.sunGlow = new Sprite( sunGlowSpriteMat );
-    XR.sunGlow.scale.set(0.4, 0.4, 1);
+    solarSailer.sunGlow = new Sprite( sunGlowSpriteMat );
+    solarSailer.sunGlow.scale.set(0.4, 0.4, 1);
+    // solarSailer.sunGroup.position.set(0, 0, -1);
+    solarSailer.scene.add(solarSailer.sunGroup);
 
-    XR.scene.add(XR.sunGroup);
-
-    XR.sunShining = false;
+    solarSailer.sunShining = false;
 
 }
 
@@ -45995,74 +47501,72 @@ function attachSunToViewer() {
     var dist = 0.4;
     var cwd = new Vector3();
             
-    XR.camera.getWorldDirection(cwd);
+    solarSailer.camera.getWorldDirection(cwd);
     
     cwd.multiplyScalar(dist);
-    cwd.add(XR.camera.position);
+    cwd.add(solarSailer.camera.position);
     
-    XR.sunGroup.position.set(cwd.x, cwd.y - 0.30, cwd.z);
-    // XR.sunGroup.setRotationFromQuaternion(XR.camera.quaternion);
+    solarSailer.sunGroup.position.set(cwd.x, cwd.y - 0.30, cwd.z);
 }
 
 function toggleSunLight() {
-    let updateSunColor = new Color(XR.sunColor.getHex());
+    let updateSunColor = new Color(solarSailer.sunColor.getHex());
 
-    if(XR.sunShining == false) {
-        gsapWithCSS.to(updateSunColor, {r: XR.sunOnColor.r, g: XR.sunOnColor.g, b: XR.sunOnColor.b, duration: 0.4,
+    if(solarSailer.sunShining == false) {
+        gsapWithCSS.to(updateSunColor, {r: solarSailer.sunOnColor.r, g: solarSailer.sunOnColor.g, b: solarSailer.sunOnColor.b, duration: 0.4,
 
             onUpdate: function () {
-                XR.sunColor = updateSunColor;
-                XR.sun.material.color = updateSunColor;
+                solarSailer.sunColor = updateSunColor;
+                solarSailer.sun.material.color = updateSunColor;
             }
         });
-        XR.sun.material.emissive = new Color( 0xfdb813 );
-        XR.sunLight.intensity = 20;
-        XR.sun.add(XR.sunGlow);
-        XR.sunShining = true;
+        solarSailer.sun.material.emissive = new Color( 0xfdb813 );
+        solarSailer.sunLight.intensity = 1;
+        solarSailer.sun.add(solarSailer.sunGlow);
+        solarSailer.sunShining = true;
     } else {
-        gsapWithCSS.to(updateSunColor, {r: XR.sunOffColor.r, g: XR.sunOffColor.g, b: XR.sunOffColor.b, duration: 0.4,
+        gsapWithCSS.to(updateSunColor, {r: solarSailer.sunOffColor.r, g: solarSailer.sunOffColor.g, b: solarSailer.sunOffColor.b, duration: 0.4,
 
             onUpdate: function () {
-                XR.sunColor = updateSunColor;
-                XR.sun.material.color = updateSunColor;
+                solarSailer.sunColor = updateSunColor;
+                solarSailer.sun.material.color = updateSunColor;
             }
         });
-        XR.sun.material.emissive = new Color( 0x000000 );
-        XR.sunLight.intensity = 0;
-        XR.sun.remove(XR.sunGlow);
-        XR.sunShining = false;
-        XR.oldCameraPosition = XR.camera.position;
+        solarSailer.sun.material.emissive = new Color( 0x000000 );
+        solarSailer.sunLight.intensity = 0;
+        solarSailer.sun.remove(solarSailer.sunGlow);
+        solarSailer.sunShining = false;
     }
 }
 
 function setupLights() {
-    const ambientLight = new AmbientLight( 0x404040, 10 ); // soft white light
-    XR.scene.add( ambientLight );
+    const ambientLight = new AmbientLight( 0x404040, 5 ); // soft white light
+    solarSailer.scene.add( ambientLight );
 
-    XR.sunLight = new PointLight( '#fff', 0, 0, 2);
-    XR.sunLight.position.set(0, 0, 0);
-    // XR.sunLight.lookAt(XR.spacecraft.matrixWorld);
-    XR.sunGroup.add(XR.sunLight);
+    solarSailer.sunLight = new PointLight( '#fff', 0, 3, 2);
+    solarSailer.sunLight.position.set(0, 0, 0);
+    // solarSailer.sunLight.lookAt(solarSailer.spacecraft.matrixWorld);
+    solarSailer.sunGroup.add(solarSailer.sunLight);
     
-    // const pointLightHelper = new THREE.PointLightHelper( XR.sunLight, .5 );
-    // XR.scene.add( pointLightHelper );
+    // const pointLightHelper = new THREE.PointLightHelper( solarSailer.sunLight, .5 );
+    // solarSailer.scene.add( pointLightHelper );
 }
 
 function onSelect(e) {
     console.log('onSelect()');
 
-    if(XR.XRtype == 'ar') {
+    if(solarSailer.XRtype == 'ar') {
         // Some rasting for AR
         const dir = new Vector3( 1, 2, 0 );
-        XR.camera.getWorldDirection(dir);
+        solarSailer.camera.getWorldDirection(dir);
         const raycaster = new Raycaster();
 
-        // console.log(XR.controller1);
+        // console.log(solarSailer.controller1);
 
         // Setup racaster
-        raycaster.setFromCamera( XR.viewerPosition,  XR.camera );
+        raycaster.setFromCamera( solarSailer.viewerPosition,  solarSailer.camera );
         // Update it to use the proper direction
-        raycaster.set(XR.viewerPosition, dir);
+        raycaster.set(solarSailer.viewerPosition, dir);
 
     }
 
@@ -46078,12 +47582,24 @@ function onInputSourcesChange(e) {
         const v2 = new Vector2(inputSource.gamepad.axes[0], inputSource.gamepad.axes[1] * -1);
     
         const raycaster = new Raycaster();
-        raycaster.setFromCamera( v2,  XR.camera );
-        // XR.scene.add(new THREE.ArrowHelper( raycaster.ray.direction, raycaster.ray.origin, 100, Math.random() * 0xff0000 ));
+        raycaster.setFromCamera( v2,  solarSailer.camera );
+        // solarSailer.scene.add(new THREE.ArrowHelper( raycaster.ray.direction, raycaster.ray.origin, 100, Math.random() * 0xff0000 ));
 
-        if(raycaster.intersectObject( XR.sun ).length > 0) {
+        if(raycaster.intersectObject( solarSailer.sun ).length > 0) {
             toggleSunLight();
         }
 
     }
-}export{XR};
+}
+
+function onWindowResize() {
+    if (!solarSailer.renderer.xr.isPresenting) {
+        if(solarSailer.siteCamera) {
+            solarSailer.siteCamera.aspect = solarSailer.container.clientWidth / solarSailer.container.clientHeight;
+            solarSailer.siteCamera.updateProjectionMatrix();
+        }
+
+        solarSailer.renderer.setSize(solarSailer.container.clientWidth, solarSailer.container.clientHeight);
+    }
+
+}export{solarSailer};
