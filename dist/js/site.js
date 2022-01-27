@@ -1,7 +1,1 @@
-import {siteUI}from'./ui.js';import {solarSailer}from'./webXR.js';const XRtype = 'ar'; // ar or vr
-
-siteUI.init(XRtype, solarSailer);
-
-if(navigator.xr) {
-    solarSailer.init(XRtype, siteUI);
-}
+import{siteUI as i}from"./ui.js";import{solarSailer as r}from"./webXR.js";i.init("ar",r),navigator.xr&&r.init("ar",i);

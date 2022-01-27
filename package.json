@@ -30,7 +30,7 @@
     "stylelint": "^13.13.1",
     "stylelint-config-recommended-scss": "^4.2.0",
     "stylelint-scss": "^3.19.0",
-    "three": "^0.128.0",
+    "three": "^0.137.0",
     "webxr-polyfill": "^2.0.3"
   },
   "browserslist": [

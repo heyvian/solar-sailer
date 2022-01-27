@@ -5,34 +5,47 @@
     <meta charset="UTF-8">
     <meta name="viewport"
         content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
-    <title>Solar Sailer | Heyvian</title>
-    <link rel="preconnect" href="https://fonts.gstatic.com">
-    <link href="https://fonts.googleapis.com/css2?family=Lora:wght@600&family=Open+Sans:wght@400;600;700&display=swap"
-        rel="stylesheet">
+    <title>Solar Sailer | WebXR Experiment by Heyvian</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@900&display=swap" rel="stylesheet">
     <link href="dist/css/main.min.css?" rel="stylesheet" type="text/css" media="screen" />
 
     <!-- Favicons -->
-    <link rel="apple-touch-icon" sizes="180x180" href="dist/images/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="dist/images/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="dist/images/favicon-16x16.png">
-    <link rel="manifest" href="dist/images/site.webmanifest">
-    <link rel="mask-icon" href="dist/images/safari-pinned-tab.svg" color="#090909">
-    <meta name="msapplication-TileColor" content="#090909">
-    <meta name="theme-color" content="#090909">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+    <link rel="manifest" href="site.webmanifest">
+    <link rel="mask-icon" href="safari-pinned-tab.svg" color="#000000">
+    <meta name="msapplication-TileColor" content="#000000">
+    <meta name="theme-color" content="#000000">
 
-    <meta property="og:title" content="WebXR Boilerplate | Heyvian">
-    <meta property="og:site_name" content="WebXR Boilerplate | Heyvian">
-    <meta property="og:url" content="https://heyvian.com">
-    <meta property="og:description" content="WebXR Boilerplate | Heyvian">
+    <meta property="og:title" content="Solar Sailer | WebXR Experiment by Heyvian">
+    <meta property="og:site_name" content="Solar Sailer">
+    <meta property="og:url" content="https://www.heyvian.com/web-xr/solar-sailer">
+    <meta property="og:description" content="Solar Sailer | WebXR Experiment by Heyvian">
     <meta property="og:type" content="website">
     <meta property="og:image" content="dist/images/share-image.png">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@heyvian">
+    <meta name="twitter:creator" content="@heyvian">
+    <meta name="twitter:title" content="Solar Sailer | WebXR Experiment by Heyvian">
+    <meta name="twitter:description" content="Solar Sailer | WebXR Experiment by Heyvian">
+    <meta name="twitter:image" content="https://www.heyvian.com/web-xr/solar-sailer/dist/images/share-image.png">
 </head>
 
 <body>
     <div class="c-xr-container js-xr-container"></div>
+    <div class="c-site-info">
+        <h1 class="c-site-info__title o-title o-title--primary">Solar Sailer</h1>
+        <h2 class="c-site-info__subtitle o-title o-title--secondary">Augmented reality experiment</h2>
+    </div>
     <button class="c-start-xr-btn js-start-webxr">Start XR Session</button>
     <div class="c-ar-overlay js-ar-overlay">
+        <button class="c-ar-overlay__reset-btn js-reset-spacecraft" aria-label="Reset spacecraft position"></button>
         <button class="c-ar-overlay__close-btn js-close-webxr" aria-label="Close XR session"></button>
+        <p class="c-ar-overlay__instructions js-overlay-instructions">Tap the sun to turn it on and start propelling the spacecraft.</p>
     </div>
     <script type="module" src="dist/js/site.js?"></script>
 </body>

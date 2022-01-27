@@ -3,7 +3,6 @@ function UI(XRtype) { };
 let siteUI = new UI();
 
 siteUI.init = function(XRtype, XR) {
-    console.log('|||| Init UI');
     this.XRtype = XRtype;
     this.XR = XR;
     this.startXRbtn = document.querySelector('.js-start-webxr');
@@ -11,7 +10,6 @@ siteUI.init = function(XRtype, XR) {
     this.XRnotSupportedBtnText = this.XRtype.toUpperCase() + " not supported on this device";
     
     if(navigator.xr) {
-        console.log(navigator.xr, 'immersive-' + this.XRtype);
         navigator.xr.isSessionSupported( 'immersive-' + this.XRtype ).then( function ( supported ) {
             supported ? siteUI.immersiveSupported() : siteUI.immersiveNotSupported();
         })
