@@ -294,7 +294,7 @@ function buildSpacecraft() {
         metalness: 1,
         roughness: 0.15,
         clearcoat: 1,
-        opacity: 0.8,
+        opacity: 0.9,
         transparent: true,
         side: THREE.DoubleSide,
         envMap: solarSailer.starMap,
